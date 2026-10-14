@@ -1,22 +1,31 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
+	"strconv"
+	"time"
 )
 
-var API_ENDPOINT = "https://cloud-api.yandex.net/v1/disk/public/resources/?public_key=%s&path=/%s&offset=%s"
+// var API_ENDPOINT = "https://cloud-api.yandex.net/v1/disk/public/resources/?public_key=%s&path=/%s&offset=%s"
 
-type Directory struct {
-	Path      string    `json:"path"`
-	Type      string    `json:"type"` // "dir" or "file"
-	Name      string    `json:"name"`
-	PublicKey string    `json:"public_key"`
-	File      string    `json:"file"`
-	Embedded  *Embedded `json:"_embedded"`
+type DownloadTask struct {
+	URL      string
+	SavePath string
 }
+
+// type Directory struct {
+// 	Path      string    `json:"path"`
+// 	Type      string    `json:"type"` // "dir" or "file"
+// 	Name      string    `json:"name"`
+// 	PublicKey string    `json:"public_key"`
+// 	File      string    `json:"file"`
+// 	Embedded  *Embedded `json:"_embedded"`
+// }
 
 type Resource struct {
 	Name      string    `json:"name"`
@@ -39,6 +48,7 @@ var (
 	targetUrl string
 	paralel   int
 	outDir    string
+	client    = &http.Client{Timeout: 30 * time.Minute}
 )
 
 func main() {
@@ -52,14 +62,38 @@ func main() {
 		flag.Usage()
 		os.Exit(1)
 	}
-
-	fmt.Printf(API_ENDPOINT+"\n", url.QueryEscape(targetUrl), "", "0")
+	resp, err := client.Get(buildUrlForFolder(targetUrl, "", 0, 20))
+	if err != nil {
+		os.Exit(1)
+	}
+	var res Resource
+	err = json.NewDecoder(resp.Body).Decode(&res)
+	resp.Body.Close()
+	if err != nil {
+		fmt.Printf("Не распарсился JSON: %v\n", err)
+		return
+	}
+	fmt.Println(res.Name)
 }
 
-func buildUrl() {
-
+func buildUrlForFolder(publicKey string, remotePath string, offset int, limit int) string {
+	baseURL := "https://cloud-api.yandex.net/v1/disk/public/resources"
+	params := url.Values{}
+	params.Add("public_key", publicKey)
+	if remotePath != "" {
+		params.Add("path", remotePath)
+	} else {
+		params.Add("path", "/")
+	}
+	params.Add("offset", strconv.Itoa(offset))
+	params.Add("limit", strconv.Itoa(limit))
+	return baseURL + "/?" + params.Encode()
 }
 
 func RetriveYaDiskDir() {
+
+}
+
+func downloadFile(task DownloadTask) {
 
 }
