@@ -11,6 +11,9 @@ import (
 	"path/filepath"
 	"strconv"
 	"time"
+
+	"github.com/vbauerster/mpb/v8"
+	"github.com/vbauerster/mpb/v8/decor"
 )
 
 // var API_ENDPOINT = "https://cloud-api.yandex.net/v1/disk/public/resources/?public_key=%s&path=/%s&offset=%s"
@@ -47,6 +50,7 @@ type Embedded struct {
 }
 
 var (
+	p         *mpb.Progress
 	targetUrl string
 	paralel   int
 	outDir    string
@@ -68,6 +72,8 @@ func main() {
 	flag.IntVar(&paralel, "p", 8, "Number of parallel downloading")
 	flag.StringVar(&outDir, "o", "./out", "Out dir for files")
 	flag.Parse()
+
+	p = mpb.New(mpb.WithWidth(64))
 
 	if targetUrl == "" {
 		fmt.Println("Error: Url is empty")
@@ -130,7 +136,19 @@ func downloadFile(task DownloadTask) error {
 		return fmt.Errorf("Can't create file: %w", err)
 	}
 	defer out.Close()
-	_, err = io.Copy(out, resp.Body)
+	bar := p.AddBar(resp.ContentLength,
+		mpb.PrependDecorators(
+			decor.Name(task.SavePath, decor.WC{W: 20}),
+			decor.CountersKibiByte("% .2f / % .2f"), // сколько скачано в МБ
+		),
+		mpb.AppendDecorators(
+			decor.EwmaSpeed(decor.SizeB1024(0), "% .2f", 60), // Скорость!
+			decor.Percentage(decor.WC{W: 5}),                 // Проценты
+		),
+	)
+	proxyReader, err := bar.ProxyReader(resp.Body)
+	defer proxyReader.Close()
+	_, err = io.Copy(out, proxyReader)
 	if err != nil {
 		return fmt.Errorf("Write failed: %w", err)
 	}
