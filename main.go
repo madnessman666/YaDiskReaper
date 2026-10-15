@@ -19,8 +19,9 @@ import (
 // var API_ENDPOINT = "https://cloud-api.yandex.net/v1/disk/public/resources/?public_key=%s&path=/%s&offset=%s"
 
 type DownloadTask struct {
-	URL      string
-	SavePath string
+	URL         string
+	SavePath    string
+	ExpectedMD5 string
 }
 
 // type Directory struct {
@@ -40,6 +41,7 @@ type Resource struct {
 	Size      int64     `json:"size"`
 	PublicKey string    `json:"public_key"`
 	Embedded  *Embedded `json:"_embedded"`
+	MD5       string    `json:"md5"`
 }
 
 type Embedded struct {
@@ -239,7 +241,9 @@ func downloadFile(task DownloadTask) error {
 	doneName := fmt.Sprintf("%-25s", "✅ "+fileName)
 	statusMsg := "🌐 Connecting to server..."
 	isConnected := false
-
+	if verifyFileMD5(task.SavePath, task.ExpectedMD5) {
+		return nil
+	}
 	bar := p.AddBar(0,
 		mpb.BarPriority(999),
 		mpb.BarRemoveOnComplete(),

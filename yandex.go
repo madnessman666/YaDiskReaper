@@ -1,8 +1,12 @@
 package main
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"encoding/json"
+	"io"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strconv"
 )
@@ -40,7 +44,7 @@ func getAllTasks(publicKey, remotePath, localDir string) ([]DownloadTask, string
 			name = res.Name
 		}
 		if res.Type == "file" {
-			tasks = append(tasks, DownloadTask{URL: res.File, SavePath: filepath.Join(localDir, res.Name)})
+			tasks = append(tasks, DownloadTask{URL: res.File, SavePath: filepath.Join(localDir, res.Name), ExpectedMD5: res.MD5})
 			return tasks, res.Name, nil
 		}
 
@@ -51,7 +55,7 @@ func getAllTasks(publicKey, remotePath, localDir string) ([]DownloadTask, string
 					sub, _, _ := getAllTasks(publicKey, item.Path, currLocal)
 					tasks = append(tasks, sub...)
 				} else {
-					tasks = append(tasks, DownloadTask{URL: item.File, SavePath: currLocal})
+					tasks = append(tasks, DownloadTask{URL: item.File, SavePath: currLocal, ExpectedMD5: res.MD5})
 				}
 			}
 
@@ -64,4 +68,24 @@ func getAllTasks(publicKey, remotePath, localDir string) ([]DownloadTask, string
 		}
 	}
 	return tasks, name, nil
+}
+
+func verifyFileMD5(filePath, expectedMD5 string) bool {
+	if expectedMD5 == "" {
+		return false
+	}
+
+	file, err := os.Open(filePath)
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+
+	hash := md5.New()
+	if _, err := io.Copy(hash, file); err != nil {
+		return false
+	}
+
+	calculatedMD5 := hex.EncodeToString(hash.Sum(nil))
+	return calculatedMD5 == expectedMD5
 }
