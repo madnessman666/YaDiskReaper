@@ -99,7 +99,7 @@ func main() {
 		flag.Usage()
 		os.Exit(1)
 	}
-
+	fmt.Println("Downloading started...")
 	resp, err := client.Get(buildUrlForFolder(targetUrl, "", 0, 20))
 	if err != nil {
 		fmt.Println("Error while making req for retrieving: " + err.Error())
