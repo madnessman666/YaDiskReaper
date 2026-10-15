@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 )
@@ -54,7 +56,7 @@ var (
 func main() {
 	flag.StringVar(&targetUrl, "u", "", "Url to yandex disk folder")
 	flag.IntVar(&paralel, "p", 8, "Number of parallel downloading")
-	flag.StringVar(&outDir, "o", "./", "Out dir for files")
+	flag.StringVar(&outDir, "o", "./out", "Out dir for files")
 	flag.Parse()
 
 	if targetUrl == "" {
@@ -70,10 +72,18 @@ func main() {
 	err = json.NewDecoder(resp.Body).Decode(&res)
 	resp.Body.Close()
 	if err != nil {
-		fmt.Printf("Не распарсился JSON: %v\n", err)
+		fmt.Printf("Error while parsing JSON: %v\n", err)
 		return
 	}
-	fmt.Println(res.Name)
+	for _, item := range res.Embedded.Items {
+		if item.Type == "file" {
+			task := DownloadTask{
+				URL:      item.File,
+				SavePath: filepath.Join(outDir, item.Name),
+			}
+			downloadFile(task)
+		}
+	}
 }
 
 func buildUrlForFolder(publicKey string, remotePath string, offset int, limit int) string {
@@ -94,6 +104,25 @@ func RetriveYaDiskDir() {
 
 }
 
-func downloadFile(task DownloadTask) {
-
+func downloadFile(task DownloadTask) error {
+	fmt.Println(task)
+	err := os.MkdirAll(filepath.Dir(task.SavePath), 0755)
+	if err != nil {
+		return fmt.Errorf("Can't create folder: %w", err)
+	}
+	resp, err := client.Get(task.URL)
+	if err != nil {
+		return fmt.Errorf("Network bullshit: %w", err)
+	}
+	defer resp.Body.Close()
+	out, err := os.Create(task.SavePath)
+	if err != nil {
+		return fmt.Errorf("Can't create file: %w", err)
+	}
+	defer out.Close()
+	_, err = io.Copy(out, resp.Body)
+	if err != nil {
+		return fmt.Errorf("Write failed: %w", err)
+	}
+	return nil
 }
