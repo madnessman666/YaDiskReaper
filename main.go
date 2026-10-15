@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -58,12 +59,17 @@ var (
 	client    = &http.Client{
 		Timeout: 0,
 		Transport: &http.Transport{
-			Proxy:               http.ProxyFromEnvironment,
-			MaxIdleConns:        100,
-			MaxIdleConnsPerHost: 20,
-			IdleConnTimeout:     90 * time.Second,
-			TLSHandshakeTimeout: 10 * time.Second,
-			ForceAttemptHTTP2:   true,
+			DialContext: (&net.Dialer{
+				Timeout:   10 * time.Second, // Если за 10 сек не подключился к IP - отбой
+				KeepAlive: 30 * time.Second,
+			}).DialContext,
+			Proxy:                 http.ProxyFromEnvironment,
+			MaxIdleConns:          100,
+			MaxIdleConnsPerHost:   20,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ForceAttemptHTTP2:     true,
+			ResponseHeaderTimeout: 15 * time.Second,
 		},
 	}
 	tasksChan chan DownloadTask
