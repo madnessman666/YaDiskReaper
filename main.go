@@ -23,6 +23,7 @@ type DownloadTask struct {
 	URL         string
 	SavePath    string
 	ExpectedMD5 string
+	RemotePath  string
 }
 
 // type Directory struct {

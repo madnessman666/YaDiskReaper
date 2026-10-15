@@ -4,7 +4,9 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -46,7 +48,7 @@ func getAllTasks(publicKey, remotePath, localDir string) ([]DownloadTask, string
 			name = res.Name
 		}
 		if res.Type == "file" {
-			tasks = append(tasks, DownloadTask{URL: res.File, SavePath: filepath.Join(localDir, res.Name), ExpectedMD5: res.MD5})
+			tasks = append(tasks, DownloadTask{URL: res.File, SavePath: filepath.Join(localDir, res.Name), ExpectedMD5: res.MD5, RemotePath: res.Path})
 			return tasks, res.Name, nil
 		}
 
@@ -61,7 +63,7 @@ func getAllTasks(publicKey, remotePath, localDir string) ([]DownloadTask, string
 					sub, _, _ := getAllTasks(publicKey, item.Path, currLocal)
 					tasks = append(tasks, sub...)
 				} else {
-					tasks = append(tasks, DownloadTask{URL: item.File, SavePath: currLocal, ExpectedMD5: item.MD5})
+					tasks = append(tasks, DownloadTask{URL: item.File, SavePath: currLocal, ExpectedMD5: item.MD5, RemotePath: item.Path})
 				}
 			}
 			if len(res.Embedded.Items) == 0 {
@@ -103,4 +105,30 @@ func verifyFileMD5(filePath, expectedMD5 string) bool {
 
 	calculatedMD5 := hex.EncodeToString(hash.Sum(nil))
 	return calculatedMD5 == expectedMD5
+}
+
+func getFreshURL(publicKey, remotePath string) (string, error) {
+	baseURL := "https://cloud-api.yandex.net/v1/disk/public/resources/download"
+	params := url.Values{}
+	params.Add("public_key", publicKey)
+	params.Add("path", remotePath)
+
+	resp, err := client.Get(baseURL + "?" + params.Encode())
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("API error: %s", resp.Status)
+	}
+
+	var res struct {
+		Href string `json:"href"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return "", err
+	}
+
+	return res.Href, nil
 }
