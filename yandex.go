@@ -64,11 +64,20 @@ func getAllTasks(publicKey, remotePath, localDir string) ([]DownloadTask, string
 					tasks = append(tasks, DownloadTask{URL: item.File, SavePath: currLocal, ExpectedMD5: item.MD5})
 				}
 			}
+			if len(res.Embedded.Items) == 0 {
+				break
+			}
+
+			if len(res.Embedded.Items) < limit {
+				break
+			}
 
 			offset += limit
+
 			if offset >= res.Embedded.Total {
 				break
 			}
+
 		} else {
 			break
 		}
