@@ -11,6 +11,8 @@ import (
 	"strconv"
 )
 
+var visitedPaths = make(map[string]bool)
+
 func buildUrlForFolder(publicKey string, remotePath string, offset int, limit int) string {
 	baseURL := "https://cloud-api.yandex.net/v1/disk/public/resources"
 	params := url.Values{}
@@ -51,6 +53,10 @@ func getAllTasks(publicKey, remotePath, localDir string) ([]DownloadTask, string
 		if res.Embedded != nil {
 			for _, item := range res.Embedded.Items {
 				currLocal := filepath.Join(localDir, item.Name)
+				if visitedPaths[item.Path] {
+					continue
+				}
+				visitedPaths[item.Path] = true
 				if item.Type == "dir" {
 					sub, _, _ := getAllTasks(publicKey, item.Path, currLocal)
 					tasks = append(tasks, sub...)
