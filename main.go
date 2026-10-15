@@ -68,6 +68,7 @@ var (
 )
 
 func main() {
+	fmt.Println("Yandex Downloader \n")
 	flag.StringVar(&targetUrl, "u", "", "Url to yandex disk folder")
 	flag.IntVar(&paralel, "p", 8, "Number of parallel downloading")
 	flag.StringVar(&outDir, "o", "./out", "Out dir for files")
@@ -121,7 +122,12 @@ func RetriveYaDiskDir() {
 }
 
 func downloadFile(task DownloadTask) error {
-	fmt.Println(task)
+	fileName := filepath.Base(task.SavePath) // Без "out/", чисто имя
+	if len(fileName) > 20 {
+		fileName = fileName[:17] + "..."
+	}
+	runningName := fmt.Sprintf("%-25s", "⏳ "+fileName)
+	doneName := fmt.Sprintf("%-25s", "✅ "+fileName)
 	err := os.MkdirAll(filepath.Dir(task.SavePath), 0755)
 	if err != nil {
 		return fmt.Errorf("Can't create folder: %w", err)
@@ -138,12 +144,16 @@ func downloadFile(task DownloadTask) error {
 	defer out.Close()
 	bar := p.AddBar(resp.ContentLength,
 		mpb.PrependDecorators(
-			decor.Name(task.SavePath, decor.WC{W: 20}),
-			decor.CountersKibiByte("% .2f / % .2f"), // сколько скачано в МБ
+
+			decor.OnComplete(
+				decor.Name(runningName),
+				doneName,
+			),
+			decor.Counters(decor.SizeB1024(0), " % .1f / % .1f ", decor.WC{W: 18}), // сколько скачано в МБ
 		),
 		mpb.AppendDecorators(
-			decor.EwmaSpeed(decor.SizeB1024(0), "% .2f", 60), // Скорость!
-			decor.Percentage(decor.WC{W: 5}),                 // Проценты
+			decor.EwmaSpeed(decor.SizeB1024(0), " % .1f", 60), // Скорость!
+			decor.Percentage(decor.WC{W: 6}),                  // Проценты
 		),
 	)
 	proxyReader, err := bar.ProxyReader(resp.Body)
