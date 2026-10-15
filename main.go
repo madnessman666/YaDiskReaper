@@ -122,45 +122,77 @@ func RetriveYaDiskDir() {
 }
 
 func downloadFile(task DownloadTask) error {
-	fileName := filepath.Base(task.SavePath) // Без "out/", чисто имя
+	fileName := filepath.Base(task.SavePath)
 	if len(fileName) > 20 {
 		fileName = fileName[:17] + "..."
 	}
+
 	runningName := fmt.Sprintf("%-25s", "⏳ "+fileName)
 	doneName := fmt.Sprintf("%-25s", "✅ "+fileName)
-	err := os.MkdirAll(filepath.Dir(task.SavePath), 0755)
-	if err != nil {
-		return fmt.Errorf("Can't create folder: %w", err)
-	}
-	resp, err := client.Get(task.URL)
-	if err != nil {
-		return fmt.Errorf("Network bullshit: %w", err)
-	}
-	defer resp.Body.Close()
-	out, err := os.Create(task.SavePath)
-	if err != nil {
-		return fmt.Errorf("Can't create file: %w", err)
-	}
-	defer out.Close()
-	bar := p.AddBar(resp.ContentLength,
-		mpb.PrependDecorators(
+	statusMsg := "🌐 Connecting to server..."
+	isConnected := false
 
+	bar := p.AddBar(0,
+		mpb.PrependDecorators(
 			decor.OnComplete(
 				decor.Name(runningName),
 				doneName,
 			),
-			decor.Counters(decor.SizeB1024(0), " % .1f / % .1f ", decor.WC{W: 18}), // сколько скачано в МБ
+			decor.Any(func(s decor.Statistics) string {
+				if !isConnected {
+					return statusMsg
+				}
+				current := float64(s.Current) / 1024 / 1024
+				total := float64(s.Total) / 1024 / 1024
+				return fmt.Sprintf("%6.1f / %-6.1f MiB", current, total)
+			}, decor.WC{W: 24}),
 		),
 		mpb.AppendDecorators(
-			decor.EwmaSpeed(decor.SizeB1024(0), " % .1f", 60), // Скорость!
-			decor.Percentage(decor.WC{W: 6}),                  // Проценты
+			decor.Any(func(s decor.Statistics) string {
+				if !isConnected || s.Total <= 0 {
+					return ""
+				}
+				pct := float64(s.Current) / float64(s.Total) * 100
+				return fmt.Sprintf("%5.1f%%", pct)
+			}, decor.WC{W: 6}),
+			decor.EwmaSpeed(decor.SizeB1024(0), " % .1f", 60),
 		),
 	)
+
+	err := os.MkdirAll(filepath.Dir(task.SavePath), 0755)
+	if err != nil {
+		return fmt.Errorf("Can't create folder: %w", err)
+	}
+
+	resp, err := client.Get(task.URL)
+	if err != nil {
+		statusMsg = "❌ Error while connecting"
+		bar.Abort(false)
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		statusMsg = "❌ Server returned " + resp.Status
+		bar.Abort(false)
+		return fmt.Errorf("status: %s", resp.Status)
+	}
+
+	isConnected = true
+	bar.SetTotal(resp.ContentLength, false)
+
+	out, err := os.Create(task.SavePath)
+	if err != nil {
+		bar.Abort(false)
+		return err
+	}
+	defer out.Close()
 	proxyReader, err := bar.ProxyReader(resp.Body)
 	defer proxyReader.Close()
 	_, err = io.Copy(out, proxyReader)
 	if err != nil {
-		return fmt.Errorf("Write failed: %w", err)
+		bar.Abort(false)
+		return err
 	}
 	return nil
 }
