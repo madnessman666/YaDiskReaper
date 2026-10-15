@@ -194,5 +194,6 @@ func downloadFile(task DownloadTask) error {
 		bar.Abort(false)
 		return err
 	}
+	bar.SetTotal(bar.Current(), true)
 	return nil
 }
