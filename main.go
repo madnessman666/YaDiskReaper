@@ -297,6 +297,19 @@ func downloadFile(task DownloadTask) error {
 	}
 
 	resp, err := client.Get(task.URL)
+	if err != nil || resp.StatusCode >= 500 {
+		if resp != nil {
+			resp.Body.Close()
+		}
+
+		statusMsg = "🔄 500! Grabbing new url..."
+		time.Sleep(1 * time.Second)
+
+		freshURL, freshErr := getFreshURL(targetUrl, task.RemotePath)
+		if freshErr == nil && freshURL != "" {
+			resp, err = client.Get(freshURL)
+		}
+	}
 	if err != nil {
 		statusMsg = "❌ Error while connecting"
 		bar.Abort(false)
