@@ -132,7 +132,7 @@ func main() {
 		fmt.Printf("Error while parsing JSON: %v\n", err)
 		return
 	}
-	rootDirName := outDir
+	rootDirName := res.Name
 	if rootDirName == "" {
 		rootDirName = "yandex_download"
 	}
