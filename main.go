@@ -106,7 +106,7 @@ func main() {
 	tasksChan = make(chan DownloadTask, totalFiles)
 
 	totalBar := p.AddBar(int64(totalFiles),
-		mpb.BarPriority(0), // Самый верхний
+		mpb.BarPriority(1000), // Самый верхний
 		mpb.PrependDecorators(
 			decor.Name("📦 ВСЕГО: ", decor.WC{W: 10}),
 			decor.CountersNoUnit("%d / %d", decor.WC{W: 12}),
@@ -241,7 +241,7 @@ func downloadFile(task DownloadTask) error {
 	isConnected := false
 
 	bar := p.AddBar(0,
-		mpb.BarPriority(1000),
+		mpb.BarPriority(999),
 		mpb.BarRemoveOnComplete(),
 		mpb.PrependDecorators(
 			decor.OnComplete(
