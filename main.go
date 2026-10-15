@@ -253,6 +253,7 @@ func downloadFile(task DownloadTask) error {
 	isConnected := false
 
 	bar := p.AddBar(0,
+		mpb.BarPriority(1000),
 		mpb.PrependDecorators(
 			decor.OnComplete(
 				decor.Name(runningName),
@@ -288,6 +289,7 @@ func downloadFile(task DownloadTask) error {
 	if err != nil {
 		statusMsg = "❌ Error while connecting"
 		bar.Abort(false)
+		p.UpdateBarPriority(bar, 0, false)
 		return err
 	}
 	defer resp.Body.Close()
@@ -295,6 +297,7 @@ func downloadFile(task DownloadTask) error {
 	if resp.StatusCode != http.StatusOK {
 		statusMsg = "❌ Server returned " + resp.Status
 		bar.Abort(false)
+		p.UpdateBarPriority(bar, 0, false)
 		return fmt.Errorf("status: %s", resp.Status)
 	}
 
@@ -304,6 +307,7 @@ func downloadFile(task DownloadTask) error {
 	out, err := os.Create(task.SavePath)
 	if err != nil {
 		bar.Abort(false)
+		p.UpdateBarPriority(bar, 0, false)
 		return err
 	}
 	defer out.Close()
@@ -312,8 +316,10 @@ func downloadFile(task DownloadTask) error {
 	_, err = io.Copy(out, proxyReader)
 	if err != nil {
 		bar.Abort(false)
+		p.UpdateBarPriority(bar, 0, false)
 		return err
 	}
 	bar.SetTotal(bar.Current(), true)
+	p.UpdateBarPriority(bar, 0, false)
 	return nil
 }
