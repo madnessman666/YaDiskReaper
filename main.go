@@ -50,7 +50,17 @@ var (
 	targetUrl string
 	paralel   int
 	outDir    string
-	client    = &http.Client{Timeout: 30 * time.Minute}
+	client    = &http.Client{
+		Timeout: 0,
+		Transport: &http.Transport{
+			Proxy:               http.ProxyFromEnvironment,
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 20,
+			IdleConnTimeout:     90 * time.Second,
+			TLSHandshakeTimeout: 10 * time.Second,
+			ForceAttemptHTTP2:   true,
+		},
+	}
 )
 
 func main() {
