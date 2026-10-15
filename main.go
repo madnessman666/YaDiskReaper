@@ -254,6 +254,7 @@ func downloadFile(task DownloadTask) error {
 
 	bar := p.AddBar(0,
 		mpb.BarPriority(1000),
+		mpb.BarRemoveOnComplete(),
 		mpb.PrependDecorators(
 			decor.OnComplete(
 				decor.Name(runningName),
