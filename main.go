@@ -106,6 +106,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("Yandex sent us nahui with code: %s\n", resp.Status)
+		resp.Body.Close()
+		os.Exit(1)
+	}
+
 	var res Resource
 	err = json.NewDecoder(resp.Body).Decode(&res)
 
