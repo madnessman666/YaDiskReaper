@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/vbauerster/mpb/v8"
@@ -65,29 +66,51 @@ var (
 			ForceAttemptHTTP2:   true,
 		},
 	}
+	tasksChan chan DownloadTask
 )
 
 func main() {
-	fmt.Println("Yandex Downloader \n")
+
+	p = mpb.New(mpb.WithWidth(64))
+	tasksChan = make(chan DownloadTask, 1000)
+
+	fmt.Println("Yandex Downloader")
 	flag.StringVar(&targetUrl, "u", "", "Url to yandex disk folder")
 	flag.IntVar(&paralel, "p", 8, "Number of parallel downloading")
 	flag.StringVar(&outDir, "o", "./out", "Out dir for files")
 	flag.Parse()
 
-	p = mpb.New(mpb.WithWidth(64))
+	var wg sync.WaitGroup
+
+	for i := 0; i < paralel; i++ {
+		wg.Add(1)
+		go func(workerID int) {
+			defer wg.Done()
+			for task := range tasksChan {
+				err := downloadFile(task)
+				if err != nil {
+				}
+			}
+		}(i)
+	}
 
 	if targetUrl == "" {
 		fmt.Println("Error: Url is empty")
 		flag.Usage()
 		os.Exit(1)
 	}
+
 	resp, err := client.Get(buildUrlForFolder(targetUrl, "", 0, 20))
 	if err != nil {
+		fmt.Println("Error while making req for retrieving: " + err.Error())
 		os.Exit(1)
 	}
+
 	var res Resource
 	err = json.NewDecoder(resp.Body).Decode(&res)
+
 	resp.Body.Close()
+
 	if err != nil {
 		fmt.Printf("Error while parsing JSON: %v\n", err)
 		return
@@ -98,9 +121,12 @@ func main() {
 				URL:      item.File,
 				SavePath: filepath.Join(outDir, item.Name),
 			}
-			downloadFile(task)
+			tasksChan <- task
 		}
 	}
+	close(tasksChan)
+	wg.Wait()
+	p.Wait()
 }
 
 func buildUrlForFolder(publicKey string, remotePath string, offset int, limit int) string {
@@ -117,7 +143,7 @@ func buildUrlForFolder(publicKey string, remotePath string, offset int, limit in
 	return baseURL + "/?" + params.Encode()
 }
 
-func RetriveYaDiskDir() {
+func RetriveYaDiskDir(publicKey string, path string, localDir string) {
 
 }
 
