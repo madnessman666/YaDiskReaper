@@ -245,7 +245,7 @@ func downloadFile(task DownloadTask) error {
 		doneName := fmt.Sprintf("%-25s", "⚡ "+fileName)
 
 		skipBar := p.AddBar(1,
-			mpb.BarPriority(999),
+			mpb.BarPriority(999-paralel),
 			mpb.PrependDecorators(
 				decor.Name(doneName),
 				decor.Name(" [HASH MATCHED] ", decor.WC{W: 24}),
