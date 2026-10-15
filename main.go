@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/vbauerster/mpb/v8"
@@ -72,9 +73,10 @@ var (
 			ResponseHeaderTimeout: 15 * time.Second,
 		},
 	}
-	tasksChan   chan DownloadTask
-	failedTasks []DownloadTask
-	failedMu    sync.Mutex
+	tasksChan    chan DownloadTask
+	failedTasks  []DownloadTask
+	failedMu     sync.Mutex
+	skippedCount int64
 )
 
 func main() {
@@ -115,6 +117,10 @@ func main() {
 		),
 		mpb.AppendDecorators(
 			decor.Percentage(decor.WC{W: 5}),
+			decor.Any(func(s decor.Statistics) string {
+				val := atomic.LoadInt64(&skippedCount)
+				return fmt.Sprintf(" | ⚡ Skipped (hash matched): %d", val)
+			}),
 		),
 	)
 
@@ -163,11 +169,9 @@ func main() {
 		fmt.Printf("\n⚠️ Первый заход окончен. Упало файлов: %d. Начинаем операцию добивания (Раунд 2)...\n", len(failedTasks))
 		time.Sleep(5 * time.Second) // Даем серверам 5 сек оклематься
 
-		// Создаем новый канал для второго захода
 		retryChan := make(chan DownloadTask, len(failedTasks))
 		var retryWg sync.WaitGroup
 
-		// Запускаем воркеры второго эшелона (лучше в 2-3 потока, нежнее)
 		retryParallel := 3
 		for i := 0; i < retryParallel; i++ {
 			retryWg.Add(1)
@@ -180,7 +184,6 @@ func main() {
 			}()
 		}
 
-		// Засыпаем упавшие таски
 		for _, task := range failedTasks {
 			retryChan <- task
 		}
@@ -255,6 +258,7 @@ func downloadFile(task DownloadTask) error {
 		// 	),
 		// )
 		// skipBar.SetTotal(1, true)
+		atomic.AddInt64(&skippedCount, 1)
 		return nil
 	}
 	bar := p.AddBar(0,
