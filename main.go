@@ -132,6 +132,15 @@ func main() {
 		fmt.Printf("Error while parsing JSON: %v\n", err)
 		return
 	}
+	rootDirName := outDir
+	if rootDirName == "" {
+		rootDirName = "yandex_download"
+	}
+
+	finalSaveDir := filepath.Join(outDir, rootDirName)
+
+	fmt.Printf("📁 Downloading to folder: %s\n", finalSaveDir)
+
 	RetriveYaDiskDir(res.PublicKey, res.Path, outDir)
 	// for _, item := range res.Embedded.Items {
 	// 	if item.Type == "file" {
