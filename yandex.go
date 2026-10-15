@@ -55,7 +55,7 @@ func getAllTasks(publicKey, remotePath, localDir string) ([]DownloadTask, string
 					sub, _, _ := getAllTasks(publicKey, item.Path, currLocal)
 					tasks = append(tasks, sub...)
 				} else {
-					tasks = append(tasks, DownloadTask{URL: item.File, SavePath: currLocal, ExpectedMD5: res.MD5})
+					tasks = append(tasks, DownloadTask{URL: item.File, SavePath: currLocal, ExpectedMD5: item.MD5})
 				}
 			}
 
