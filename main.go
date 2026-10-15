@@ -7,10 +7,8 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
-	"strconv"
 	"sync"
 	"time"
 
@@ -80,7 +78,6 @@ var (
 func main() {
 
 	p = mpb.New(mpb.WithWidth(64))
-	tasksChan = make(chan DownloadTask, 1000)
 
 	fmt.Println("Yandex Downloader")
 	flag.StringVar(&targetUrl, "u", "", "Url to yandex disk folder")
@@ -89,6 +86,35 @@ func main() {
 	flag.Parse()
 
 	var wg sync.WaitGroup
+
+	if targetUrl == "" {
+		fmt.Println("Error: Url is empty")
+		flag.Usage()
+		os.Exit(1)
+	}
+
+	fmt.Println("Downloading started...")
+
+	allTasks, dirName, err := getAllTasks(targetUrl, "", outDir)
+	if err != nil {
+		fmt.Printf("Ошибка обхода: %v\n", err)
+		return
+	}
+	totalFiles := len(allTasks)
+	fmt.Printf("📦 Найдено файлов: %d. Начинаю выкачку!\n", totalFiles)
+
+	tasksChan = make(chan DownloadTask, totalFiles)
+
+	totalBar := p.AddBar(int64(totalFiles),
+		mpb.BarPriority(0), // Самый верхний
+		mpb.PrependDecorators(
+			decor.Name("📦 ВСЕГО: ", decor.WC{W: 10}),
+			decor.CountersNoUnit("%d / %d", decor.WC{W: 12}),
+		),
+		mpb.AppendDecorators(
+			decor.Percentage(decor.WC{W: 5}),
+		),
+	)
 
 	for i := 0; i < paralel; i++ {
 		wg.Add(1)
@@ -101,38 +127,14 @@ func main() {
 					failedTasks = append(failedTasks, task)
 					failedMu.Unlock()
 				}
+				totalBar.Increment()
 			}
 		}(i)
 	}
-
-	if targetUrl == "" {
-		fmt.Println("Error: Url is empty")
-		flag.Usage()
-		os.Exit(1)
+	for _, task := range allTasks {
+		tasksChan <- task
 	}
-	fmt.Println("Downloading started...")
-	resp, err := client.Get(buildUrlForFolder(targetUrl, "", 0, 20))
-	if err != nil {
-		fmt.Println("Error while making req for retrieving: " + err.Error())
-		os.Exit(1)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		fmt.Printf("Yandex sent us nahui with code: %s\n", resp.Status)
-		resp.Body.Close()
-		os.Exit(1)
-	}
-
-	var res Resource
-	err = json.NewDecoder(resp.Body).Decode(&res)
-
-	resp.Body.Close()
-
-	if err != nil {
-		fmt.Printf("Error while parsing JSON: %v\n", err)
-		return
-	}
-	rootDirName := res.Name
+	rootDirName := dirName
 	if rootDirName == "" {
 		rootDirName = "yandex_download"
 	}
@@ -141,7 +143,7 @@ func main() {
 
 	fmt.Printf("📁 Downloading to folder: %s\n", finalSaveDir)
 
-	RetriveYaDiskDir(res.PublicKey, res.Path, outDir)
+	// RetriveYaDiskDir(res.PublicKey, res.Path, outDir)
 	// for _, item := range res.Embedded.Items {
 	// 	if item.Type == "file" {
 	// 		task := DownloadTask{
@@ -188,20 +190,6 @@ func main() {
 
 	p.Wait()
 	fmt.Println("\n🏁 Всё, что было физически возможно спасти — спасено!")
-}
-
-func buildUrlForFolder(publicKey string, remotePath string, offset int, limit int) string {
-	baseURL := "https://cloud-api.yandex.net/v1/disk/public/resources"
-	params := url.Values{}
-	params.Add("public_key", publicKey)
-	if remotePath != "" {
-		params.Add("path", remotePath)
-	} else {
-		params.Add("path", "/")
-	}
-	params.Add("offset", strconv.Itoa(offset))
-	params.Add("limit", strconv.Itoa(limit))
-	return baseURL + "/?" + params.Encode()
 }
 
 func RetriveYaDiskDir(publicKey, remotePath, localDir string) {
