@@ -242,19 +242,19 @@ func downloadFile(task DownloadTask) error {
 	statusMsg := "🌐 Connecting to server..."
 	isConnected := false
 	if verifyFileMD5(task.SavePath, task.ExpectedMD5) {
-		doneName := fmt.Sprintf("%-25s", "⚡ "+fileName)
+		// doneName := fmt.Sprintf("%-25s", "⚡ "+fileName)
 
-		skipBar := p.AddBar(1,
-			mpb.BarPriority(999-paralel),
-			mpb.PrependDecorators(
-				decor.Name(doneName),
-				decor.Name(" [HASH MATCHED] ", decor.WC{W: 24}),
-			),
-			mpb.AppendDecorators(
-				decor.Name("OK", decor.WC{W: 5}),
-			),
-		)
-		skipBar.SetTotal(1, true)
+		// skipBar := p.AddBar(1,
+		// 	mpb.BarPriority(999-paralel),
+		// 	mpb.PrependDecorators(
+		// 		decor.Name(doneName),
+		// 		decor.Name(" [HASH MATCHED] ", decor.WC{W: 24}),
+		// 	),
+		// 	mpb.AppendDecorators(
+		// 		decor.Name("OK", decor.WC{W: 5}),
+		// 	),
+		// )
+		// skipBar.SetTotal(1, true)
 		return nil
 	}
 	bar := p.AddBar(0,
