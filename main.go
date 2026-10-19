@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -98,7 +99,36 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Println("Downloading started...")
+	// END OF CHECKS OF ARGS
+
+	var (
+		currentSpeedMB float64
+		activeFiles    int
+		waitingFiles   int
+		telemetryMu    sync.RWMutex
+	)
+
+	ariaProcess, err := startAriaDaemon()
+
+	if err != nil {
+		fmt.Printf("❌ Пиздец: %v\n", err)
+		return
+	}
+
+	defer func() {
+		if ariaProcess != nil && ariaProcess.Process != nil {
+			ariaProcess.Process.Kill()
+		}
+	}()
+
+	fmt.Println("🚀 Aria2c started! Check your belts!")
+
+	aria, err := NewAriaClient("ws://localhost:6800/jsonrpc")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("Getting tree of files...")
 
 	allTasks, dirName, err := getAllTasks(targetUrl, "", outDir)
 	if err != nil {
@@ -106,43 +136,56 @@ func main() {
 		return
 	}
 	totalFiles := len(allTasks)
-	fmt.Printf("📦 Найдено файлов: %d. Начинаю выкачку!\n", totalFiles)
+	fmt.Printf("📦 Found files: %d. Checking downloaded files!\n", totalFiles)
 
-	tasksChan = make(chan DownloadTask, totalFiles)
+	// tasksChan = make(chan DownloadTask, totalFiles)
 
 	totalBar := p.AddBar(int64(totalFiles),
-		mpb.BarPriority(1000), // Самый верхний
+		mpb.BarPriority(1000),
 		mpb.PrependDecorators(
-			decor.Name("📦 ВСЕГО: ", decor.WC{W: 10}),
+			decor.Name("📦 ВЫКАЧКА: ", decor.WC{W: 10}),
 			decor.CountersNoUnit("%d / %d", decor.WC{W: 12}),
 		),
 		mpb.AppendDecorators(
 			decor.Percentage(decor.WC{W: 5}),
 			decor.Any(func(s decor.Statistics) string {
-				val := atomic.LoadInt64(&skippedCount)
-				return fmt.Sprintf(" | ⚡ Skipped (hash matched): %d", val)
+				return fmt.Sprintf(" | 🚀 %5.1f МБ/с | 🔥 Активно: %d | ⏳ Очередь: %-4d",
+					currentSpeedMB, activeFiles, waitingFiles)
 			}),
 		),
 	)
 
-	for i := 0; i < paralel; i++ {
-		wg.Add(1)
-		go func(workerID int) {
-			defer wg.Done()
-			for task := range tasksChan {
-				err := downloadFile(task)
-				if err != nil {
-					failedMu.Lock()
-					failedTasks = append(failedTasks, task)
-					failedMu.Unlock()
-				}
-				totalBar.Increment()
-			}
-		}(i)
+	aria.OnStatsUpdate = func(speedMB float64, active, waiting int) {
+		telemetryMu.Lock()
+		currentSpeedMB = speedMB
+		activeFiles = active
+		waitingFiles = waiting
+		telemetryMu.Unlock()
 	}
-	for _, task := range allTasks {
-		tasksChan <- task
+
+	aria.OnDownloadComplete = func(task DownloadTask, gid string) {
+		totalBar.Increment()
 	}
+
+	// for i := 0; i < paralel; i++ {
+	// 	wg.Add(1)
+	// 	go func(workerID int) {
+	// 		defer wg.Done()
+	// 		for task := range tasksChan {
+	// 			err := downloadFile(task)
+	// 			if err != nil {
+	// 				failedMu.Lock()
+	// 				failedTasks = append(failedTasks, task)
+	// 				failedMu.Unlock()
+	// 			}
+	// 			totalBar.Increment()
+	// 		}
+	// 	}(i)
+	// }
+	// for _, task := range allTasks {
+	// 	tasksChan <- task
+	// }
+
 	rootDirName := dirName
 	if rootDirName == "" {
 		rootDirName = "yandex_download"
@@ -163,38 +206,37 @@ func main() {
 	// 	}
 	// }
 
-	close(tasksChan)
 	wg.Wait()
 
-	if len(failedTasks) > 0 {
-		fmt.Printf("\n⚠️ Первый заход окончен. Упало файлов: %d. Начинаем операцию добивания (Раунд 2)...\n", len(failedTasks))
-		time.Sleep(5 * time.Second) // Даем серверам 5 сек оклематься
+	// if len(failedTasks) > 0 {
+	// 	fmt.Printf("\n⚠️ Первый заход окончен. Упало файлов: %d. Начинаем операцию добивания (Раунд 2)...\n", len(failedTasks))
+	// 	time.Sleep(5 * time.Second) // Даем серверам 5 сек оклематься
 
-		retryChan := make(chan DownloadTask, len(failedTasks))
-		var retryWg sync.WaitGroup
+	// 	retryChan := make(chan DownloadTask, len(failedTasks))
+	// 	var retryWg sync.WaitGroup
 
-		retryParallel := 3
-		for i := 0; i < retryParallel; i++ {
-			retryWg.Add(1)
-			go func() {
-				defer retryWg.Done()
-				for task := range retryChan {
-					// Пробуем скачать повторно
-					downloadFile(task)
-				}
-			}()
-		}
+	// 	retryParallel := 3
+	// 	for i := 0; i < retryParallel; i++ {
+	// 		retryWg.Add(1)
+	// 		go func() {
+	// 			defer retryWg.Done()
+	// 			for task := range retryChan {
+	// 				// Пробуем скачать повторно
+	// 				downloadFile(task)
+	// 			}
+	// 		}()
+	// 	}
 
-		for _, task := range failedTasks {
-			retryChan <- task
-		}
-		close(retryChan)
+	// 	for _, task := range failedTasks {
+	// 		retryChan <- task
+	// 	}
+	// 	close(retryChan)
 
-		// Ждем завершения второго захода
-		retryWg.Wait()
-	}
+	// 	// Ждем завершения второго захода
+	// 	retryWg.Wait()
+	// }
 
-	p.Wait()
+	// p.Wait()
 	fmt.Println("\n🏁 Всё, что было физически возможно спасти — спасено!")
 }
 
