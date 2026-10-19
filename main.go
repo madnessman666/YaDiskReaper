@@ -172,6 +172,7 @@ func main() {
 
 	aria.OnDownloadError = func(task DownloadTask, gid string) {
 		downloadWg.Done()
+		totalBar.Increment()
 
 		failedMu.Lock()
 		failedTasks = append(failedTasks, task)
