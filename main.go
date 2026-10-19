@@ -211,6 +211,7 @@ func main() {
 	for _, task := range allTasks {
 		if verifyFileMD5(task.SavePath, task.ExpectedMD5) {
 			atomic.AddInt64(&skippedCount, 1)
+			totalBar.Increment()
 		} else {
 			aria.AddTask(task)
 			downloadWg.Add(1)
