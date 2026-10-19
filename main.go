@@ -149,7 +149,7 @@ func main() {
 		mpb.AppendDecorators(
 			decor.Percentage(decor.WC{W: 5}),
 			decor.Any(func(s decor.Statistics) string {
-				return fmt.Sprintf(" | 🚀 %5.1f МБ/с | 🔥 Активно: %d | ⏳ Очередь: %-4d",
+				return fmt.Sprintf(" | 🚀 %5.1f MB/с | 🔥 Active: %d | ⏳ Queue: %-4d",
 					currentSpeedMB, activeFiles, waitingFiles)
 			}),
 		),
@@ -166,6 +166,16 @@ func main() {
 	aria.OnDownloadComplete = func(task DownloadTask, gid string) {
 		totalBar.Increment()
 		downloadWg.Done()
+	}
+
+	aria.OnDownloadError = func(task DownloadTask, gid string) {
+		downloadWg.Done()
+
+		failedMu.Lock()
+		failedTasks = append(failedTasks, task)
+		failedMu.Unlock()
+
+		logFailedToFile(task)
 	}
 
 	// for i := 0; i < paralel; i++ {
@@ -247,7 +257,29 @@ func main() {
 	// }
 
 	// p.Wait()
-	fmt.Println("\n🏁 Всё, что было физически возможно спасти — спасено!")
+
+	fmt.Println("\n==================================================")
+	if len(failedTasks) == 0 {
+		fmt.Println("🎉 SUCCESS! Everything downloaded!")
+	} else {
+		fmt.Printf("⚠️ WARNING: Errors while downloading: %d/%d\n", len(failedTasks), totalFiles)
+		fmt.Println("📄 Log file: failed.log")
+		fmt.Println("--------------------------------------------------")
+
+		maxShow := 10
+		if len(failedTasks) < maxShow {
+			maxShow = len(failedTasks)
+		}
+
+		for i := 0; i < maxShow; i++ {
+			fmt.Printf("❌ %s\n", filepath.Base(failedTasks[i].SavePath))
+		}
+
+		if len(failedTasks) > maxShow {
+			fmt.Printf("... and %d files (check failed.log for more info)\n", len(failedTasks)-maxShow)
+		}
+	}
+	fmt.Println("==================================================")
 }
 
 func RetriveYaDiskDir(publicKey, remotePath, localDir string) {

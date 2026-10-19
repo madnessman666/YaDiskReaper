@@ -45,3 +45,11 @@ func extractEmbeddedAria() (string, error) {
 
 	return tmpPath, nil
 }
+
+func logFailedToFile(task DownloadTask) {
+	f, err := os.OpenFile("failed.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err == nil {
+		defer f.Close()
+		f.WriteString(fmt.Sprintf("%s\n", task.SavePath))
+	}
+}
