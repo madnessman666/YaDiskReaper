@@ -84,6 +84,8 @@ var (
 func main() {
 
 	p = mpb.New(mpb.WithWidth(64))
+	log.SetOutput(p)
+	log.SetFlags(log.Ltime)
 
 	fmt.Println("Yandex Downloader")
 	flag.StringVar(&targetUrl, "u", "", "Url to yandex disk folder")

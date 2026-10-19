@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -13,11 +14,11 @@ import (
 )
 
 type AriaClient struct {
-	conn      *websocket.Conn
-	tasksMu   sync.RWMutex
-	gidToTask map[string]DownloadTask
-	writeMu   sync.Mutex
-
+	conn               *websocket.Conn
+	tasksMu            sync.RWMutex
+	gidToTask          map[string]DownloadTask
+	writeMu            sync.Mutex
+	pendingTasks       map[string]DownloadTask
 	OnDownloadStart    func(task DownloadTask, gid string)
 	OnDownloadComplete func(task DownloadTask, gid string)
 	OnDownloadError    func(task DownloadTask, gid string)
@@ -31,8 +32,9 @@ func NewAriaClient(wsURL string) (*AriaClient, error) {
 	}
 
 	client := &AriaClient{
-		conn:      conn,
-		gidToTask: make(map[string]DownloadTask),
+		conn:         conn,
+		gidToTask:    make(map[string]DownloadTask),
+		pendingTasks: make(map[string]DownloadTask),
 	}
 
 	go client.listenLoop()
@@ -59,17 +61,33 @@ func (c *AriaClient) listenLoop() {
 	for {
 		_, message, err := c.conn.ReadMessage()
 		if err != nil {
+			log.Printf("❌ Сокет Арии закрыт / упал: %v\n", err)
 			return
 		}
+
 		var raw map[string]interface{}
-		json.Unmarshal(message, &raw)
+		if err := json.Unmarshal(message, &raw); err != nil {
+			log.Printf("⚠️ Битый JSON от Арии: %v\n", err)
+			continue
+		}
+
+		if errObj, hasErr := raw["error"]; hasErr {
+			log.Printf("🔥 АРИЯ ОТВЕРГЛА ЗАДАЧУ! Ответ: %v\n", errObj)
+			continue
+		}
+
 		id, ok := raw["id"].(string)
 
+		// 1. Ответ на getGlobalStat
 		if ok && id == "global_stat" {
 			if res, ok := raw["result"].(map[string]interface{}); ok {
-				speedBytes, _ := strconv.ParseFloat(res["downloadSpeed"].(string), 64)
-				active, _ := strconv.Atoi(res["numActive"].(string))
-				waiting, _ := strconv.Atoi(res["numWaiting"].(string))
+				speedStr, _ := res["downloadSpeed"].(string)
+				activeStr, _ := res["numActive"].(string)
+				waitingStr, _ := res["numWaiting"].(string)
+
+				speedBytes, _ := strconv.ParseFloat(speedStr, 64)
+				active, _ := strconv.Atoi(activeStr)
+				waiting, _ := strconv.Atoi(waitingStr)
 
 				speedMB := speedBytes / 1024 / 1024
 				if c.OnStatsUpdate != nil {
@@ -81,13 +99,21 @@ func (c *AriaClient) listenLoop() {
 
 		if ok && id != "" {
 			if gid, ok := raw["result"].(string); ok {
+				// log.Printf("📥 Aria accepted job: %s (GID: %s)", id, gid)
+
 				c.tasksMu.Lock()
-				c.gidToTask[gid] = DownloadTask{SavePath: id}
+				if originalTask, exists := c.pendingTasks[id]; exists {
+					c.gidToTask[gid] = originalTask
+					delete(c.pendingTasks, id)
+				} else {
+					c.gidToTask[gid] = DownloadTask{SavePath: id}
+				}
 				c.tasksMu.Unlock()
 			}
 			continue
 		}
 
+		// 3. Ивенты (Start, Complete, Error)
 		method, _ := raw["method"].(string)
 		params, _ := raw["params"].([]interface{})
 		if len(params) == 0 {
@@ -103,10 +129,12 @@ func (c *AriaClient) listenLoop() {
 
 		switch method {
 		case "aria2.onDownloadComplete":
+			log.Printf("✅ Downloaded: %s\n", filepath.Base(task.SavePath))
 			if c.OnDownloadComplete != nil {
 				c.OnDownloadComplete(task, gid)
 			}
 		case "aria2.onDownloadError":
+			log.Printf("❌ Error while downloading: %s (GID: %s)\n", filepath.Base(task.SavePath), gid)
 			if c.OnDownloadError != nil {
 				c.OnDownloadError(task, gid)
 			}
@@ -119,7 +147,7 @@ func (c *AriaClient) listenLoop() {
 }
 
 func (c *AriaClient) AddTask(task DownloadTask) error {
-	reqID := task.SavePath // Используем путь как уникальный ID запроса
+	reqID := task.SavePath
 
 	req := map[string]interface{}{
 		"jsonrpc": "2.0",
@@ -137,6 +165,10 @@ func (c *AriaClient) AddTask(task DownloadTask) error {
 		},
 	}
 
+	c.tasksMu.Lock()
+	c.pendingTasks[reqID] = task
+	c.tasksMu.Unlock()
+
 	return c.sendJSON(req)
 }
 
@@ -147,23 +179,23 @@ func startAriaDaemon() (*exec.Cmd, error) {
 	}
 
 	args := []string{
-		"--enable-rpc=true",             // Врубаем JSON-RPC
-		"--rpc-listen-port=6800",        // Порт вебсокета/HTTP
-		"--rpc-listen-all=false",        // Слушать только localhost (безопасность)
-		"--max-concurrent-downloads=8",  // 8 файлов одновременно
-		"--max-connection-per-server=8", // 8 сокетов на один файл (всего 64 сокета!)
-		"--split=8",                     // Резать файл на 8 кусков
-		"--min-split-size=1M",           // Минимальный размер куска 1 МБ
-		"-c",                            // Врубаем докачку (continue)
-		"--file-allocation=none",        // Не тратить время на разметку диска
-		"--console-log-level=warn",      // Не срать мусором в лог
+		"--enable-rpc=true",             // JSON-RPC
+		"--rpc-listen-port=6800",        // WS/HTTP port
+		"--rpc-listen-all=false",        // Listen only localhost (Security)
+		"--max-concurrent-downloads=8",  // 8 files concurrently
+		"--max-connection-per-server=8", // 8 sockets per file
+		"--split=8",                     // Slice file for 8 slices
+		"--min-split-size=1M",           // Minimum size 1 MB
+		"-c",                            // Enable continue
+		"--file-allocation=none",        // No drive allocate
+		"--console-log-level=warn",      // No log
 	}
 
 	cmd := exec.Command(ariaPath, args...)
 
 	err = cmd.Start()
 	if err != nil {
-		return nil, fmt.Errorf("ошибка запуска процесса aria2c: %w", err)
+		return nil, fmt.Errorf("Error while starting aria2c: %w", err)
 	}
 
 	time.Sleep(200 * time.Millisecond)
