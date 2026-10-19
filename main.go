@@ -91,7 +91,7 @@ func main() {
 	flag.StringVar(&outDir, "o", "./out", "Out dir for files")
 	flag.Parse()
 
-	var wg sync.WaitGroup
+	var downloadWg sync.WaitGroup
 
 	if targetUrl == "" {
 		fmt.Println("Error: Url is empty")
@@ -165,6 +165,7 @@ func main() {
 
 	aria.OnDownloadComplete = func(task DownloadTask, gid string) {
 		totalBar.Increment()
+		downloadWg.Done()
 	}
 
 	// for i := 0; i < paralel; i++ {
@@ -195,6 +196,15 @@ func main() {
 
 	fmt.Printf("📁 Downloading to folder: %s\n", finalSaveDir)
 
+	for _, task := range allTasks {
+		if verifyFileMD5(task.SavePath, task.ExpectedMD5) {
+			atomic.AddInt64(&skippedCount, 1)
+		} else {
+			aria.AddTask(task)
+			downloadWg.Add(1)
+		}
+	}
+
 	// RetriveYaDiskDir(res.PublicKey, res.Path, outDir)
 	// for _, item := range res.Embedded.Items {
 	// 	if item.Type == "file" {
@@ -206,7 +216,7 @@ func main() {
 	// 	}
 	// }
 
-	wg.Wait()
+	downloadWg.Wait()
 
 	// if len(failedTasks) > 0 {
 	// 	fmt.Printf("\n⚠️ Первый заход окончен. Упало файлов: %d. Начинаем операцию добивания (Раунд 2)...\n", len(failedTasks))

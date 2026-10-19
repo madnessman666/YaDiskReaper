@@ -16,6 +16,7 @@ type AriaClient struct {
 	conn      *websocket.Conn
 	tasksMu   sync.RWMutex
 	gidToTask map[string]DownloadTask
+	writeMu   sync.Mutex
 
 	OnDownloadStart    func(task DownloadTask, gid string)
 	OnDownloadComplete func(task DownloadTask, gid string)
@@ -50,7 +51,7 @@ func (c *AriaClient) startStatPoller() {
 			"method":  "aria2.getGlobalStat",
 			"params":  []interface{}{},
 		}
-		c.conn.WriteJSON(req)
+		c.sendJSON(req)
 	}
 }
 
@@ -136,7 +137,7 @@ func (c *AriaClient) AddTask(task DownloadTask) error {
 		},
 	}
 
-	return c.conn.WriteJSON(req)
+	return c.sendJSON(req)
 }
 
 func startAriaDaemon() (*exec.Cmd, error) {
@@ -168,4 +169,10 @@ func startAriaDaemon() (*exec.Cmd, error) {
 	time.Sleep(200 * time.Millisecond)
 
 	return cmd, nil
+}
+
+func (c *AriaClient) sendJSON(v interface{}) error {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+	return c.conn.WriteJSON(v)
 }
