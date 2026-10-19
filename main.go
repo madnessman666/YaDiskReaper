@@ -87,7 +87,7 @@ func main() {
 	log.SetOutput(p)
 	log.SetFlags(log.Ltime)
 
-	fmt.Println("Yandex Downloader")
+	log.Println("Yandex Downloader")
 	flag.StringVar(&targetUrl, "u", "", "Url to yandex disk folder")
 	flag.IntVar(&paralel, "p", 8, "Number of parallel downloading")
 	flag.StringVar(&outDir, "o", "./out", "Out dir for files")
@@ -96,7 +96,7 @@ func main() {
 	var downloadWg sync.WaitGroup
 
 	if targetUrl == "" {
-		fmt.Println("Error: Url is empty")
+		log.Println("Error: Url is empty")
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -113,7 +113,7 @@ func main() {
 	ariaProcess, err := startAriaDaemon()
 
 	if err != nil {
-		fmt.Printf("❌ Пиздец: %v\n", err)
+		log.Printf("❌ FUCK: %v\n", err)
 		return
 	}
 
@@ -123,22 +123,22 @@ func main() {
 		}
 	}()
 
-	fmt.Println("🚀 Aria2c started! Check your belts!")
+	log.Println("🚀 Aria2c started! Check your belts!")
 
 	aria, err := NewAriaClient("ws://localhost:6800/jsonrpc")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Println("Getting tree of files...")
+	log.Println("Getting tree of files...")
 
 	allTasks, dirName, err := getAllTasks(targetUrl, "", outDir)
 	if err != nil {
-		fmt.Printf("Ошибка обхода: %v\n", err)
+		log.Printf("Error white getting tree: %v\n", err)
 		return
 	}
 	totalFiles := len(allTasks)
-	fmt.Printf("📦 Found files: %d. Checking downloaded files!\n", totalFiles)
+	log.Printf("📦 Found files: %d. Checking downloaded files!\n", totalFiles)
 
 	// tasksChan = make(chan DownloadTask, totalFiles)
 
@@ -207,7 +207,7 @@ func main() {
 
 	finalSaveDir := filepath.Join(outDir, rootDirName)
 
-	fmt.Printf("📁 Downloading to folder: %s\n", finalSaveDir)
+	log.Printf("📁 Downloading to folder: %s\n", finalSaveDir)
 
 	for _, task := range allTasks {
 		if verifyFileMD5(task.SavePath, task.ExpectedMD5) {
