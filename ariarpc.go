@@ -46,10 +46,9 @@ func NewAriaClient(wsURL string) (*AriaClient, error) {
 func (c *AriaClient) startStatPoller() {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	for range ticker.C {
-		// Шлем легкий запрос в сокет
 		req := map[string]interface{}{
 			"jsonrpc": "2.0",
-			"id":      "global_stat", // Метка, чтобы узнать ответ!
+			"id":      "global_stat",
 			"method":  "aria2.getGlobalStat",
 			"params":  []interface{}{},
 		}
@@ -61,24 +60,23 @@ func (c *AriaClient) listenLoop() {
 	for {
 		_, message, err := c.conn.ReadMessage()
 		if err != nil {
-			log.Printf("❌ Сокет Арии закрыт / упал: %v\n", err)
+			log.Printf("❌ Socket closed: %v\n", err)
 			return
 		}
 
 		var raw map[string]interface{}
 		if err := json.Unmarshal(message, &raw); err != nil {
-			log.Printf("⚠️ Битый JSON от Арии: %v\n", err)
+			log.Printf("⚠️ Broken JSON from Aria: %v\n", err)
 			continue
 		}
 
 		if errObj, hasErr := raw["error"]; hasErr {
-			log.Printf("🔥 АРИЯ ОТВЕРГЛА ЗАДАЧУ! Ответ: %v\n", errObj)
+			log.Printf("🔥 ARIA REJECTED JOB! Response: %v\n", errObj)
 			continue
 		}
 
 		id, ok := raw["id"].(string)
 
-		// 1. Ответ на getGlobalStat
 		if ok && id == "global_stat" {
 			if res, ok := raw["result"].(map[string]interface{}); ok {
 				speedStr, _ := res["downloadSpeed"].(string)
@@ -113,7 +111,6 @@ func (c *AriaClient) listenLoop() {
 			continue
 		}
 
-		// 3. Ивенты (Start, Complete, Error)
 		method, _ := raw["method"].(string)
 		params, _ := raw["params"].([]interface{})
 		if len(params) == 0 {
