@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -75,7 +74,6 @@ var (
 			ResponseHeaderTimeout: 15 * time.Second,
 		},
 	}
-	tasksChan    chan DownloadTask
 	failedTasks  []DownloadTask
 	failedMu     sync.Mutex
 	skippedCount int64
@@ -138,9 +136,8 @@ func main() {
 		return
 	}
 	totalFiles := len(allTasks)
-	log.Printf("📦 Found files: %d. Checking downloaded files!\n", totalFiles)
 
-	// tasksChan = make(chan DownloadTask, totalFiles)
+	log.Printf("📦 Found files: %d. Checking downloaded files!\n", totalFiles)
 
 	totalBar := p.AddBar(int64(totalFiles),
 		mpb.BarPriority(1000),
@@ -181,25 +178,6 @@ func main() {
 		logFailedToFile(task)
 	}
 
-	// for i := 0; i < paralel; i++ {
-	// 	wg.Add(1)
-	// 	go func(workerID int) {
-	// 		defer wg.Done()
-	// 		for task := range tasksChan {
-	// 			err := downloadFile(task)
-	// 			if err != nil {
-	// 				failedMu.Lock()
-	// 				failedTasks = append(failedTasks, task)
-	// 				failedMu.Unlock()
-	// 			}
-	// 			totalBar.Increment()
-	// 		}
-	// 	}(i)
-	// }
-	// for _, task := range allTasks {
-	// 	tasksChan <- task
-	// }
-
 	rootDirName := dirName
 	if rootDirName == "" {
 		rootDirName = "yandex_download"
@@ -219,48 +197,7 @@ func main() {
 		}
 	}
 
-	// RetriveYaDiskDir(res.PublicKey, res.Path, outDir)
-	// for _, item := range res.Embedded.Items {
-	// 	if item.Type == "file" {
-	// 		task := DownloadTask{
-	// 			URL:      item.File,
-	// 			SavePath: filepath.Join(outDir, item.Name),
-	// 		}
-	// 		tasksChan <- task
-	// 	}
-	// }
-
 	downloadWg.Wait()
-
-	// if len(failedTasks) > 0 {
-	// 	fmt.Printf("\n⚠️ Первый заход окончен. Упало файлов: %d. Начинаем операцию добивания (Раунд 2)...\n", len(failedTasks))
-	// 	time.Sleep(5 * time.Second) // Даем серверам 5 сек оклематься
-
-	// 	retryChan := make(chan DownloadTask, len(failedTasks))
-	// 	var retryWg sync.WaitGroup
-
-	// 	retryParallel := 3
-	// 	for i := 0; i < retryParallel; i++ {
-	// 		retryWg.Add(1)
-	// 		go func() {
-	// 			defer retryWg.Done()
-	// 			for task := range retryChan {
-	// 				// Пробуем скачать повторно
-	// 				downloadFile(task)
-	// 			}
-	// 		}()
-	// 	}
-
-	// 	for _, task := range failedTasks {
-	// 		retryChan <- task
-	// 	}
-	// 	close(retryChan)
-
-	// 	// Ждем завершения второго захода
-	// 	retryWg.Wait()
-	// }
-
-	// p.Wait()
 
 	fmt.Println("\n==================================================")
 	if len(failedTasks) == 0 {
@@ -284,43 +221,6 @@ func main() {
 		}
 	}
 	fmt.Println("==================================================")
-}
-
-func RetriveYaDiskDir(publicKey, remotePath, localDir string) {
-	offset := 0
-	limit := 100
-
-	for {
-		reqURL := buildUrlForFolder(publicKey, remotePath, offset, limit)
-		resp, err := client.Get(reqURL)
-		if err != nil {
-			return
-		}
-
-		var res Resource
-		json.NewDecoder(resp.Body).Decode(&res)
-		resp.Body.Close()
-
-		if res.Embedded == nil {
-			break
-		}
-
-		for _, item := range res.Embedded.Items {
-			if item.Type == "dir" {
-				RetriveYaDiskDir(publicKey, item.Path, filepath.Join(localDir, item.Name))
-			} else {
-				tasksChan <- DownloadTask{
-					URL:      item.File,
-					SavePath: filepath.Join(localDir, item.Name),
-				}
-			}
-		}
-
-		offset += limit
-		if offset >= res.Embedded.Total {
-			break
-		}
-	}
 }
 
 func downloadFile(task DownloadTask) error {
