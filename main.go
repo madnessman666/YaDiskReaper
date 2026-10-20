@@ -62,7 +62,7 @@ var (
 		Timeout: 0,
 		Transport: &http.Transport{
 			DialContext: (&net.Dialer{
-				Timeout:   10 * time.Second, // Если за 10 сек не подключился к IP - отбой
+				Timeout:   10 * time.Second,
 				KeepAlive: 30 * time.Second,
 			}).DialContext,
 			Proxy:                 http.ProxyFromEnvironment,
