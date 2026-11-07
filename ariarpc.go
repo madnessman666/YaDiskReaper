@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -144,6 +146,11 @@ func (c *AriaClient) listenLoop() {
 }
 
 func (c *AriaClient) AddTask(task DownloadTask) error {
+	absPath, err := filepath.Abs(task.SavePath)
+	if err != nil {
+		return err
+	}
+
 	reqID := task.SavePath
 
 	req := map[string]interface{}{
@@ -153,8 +160,8 @@ func (c *AriaClient) AddTask(task DownloadTask) error {
 		"params": []interface{}{
 			[]string{task.URL},
 			map[string]string{
-				"dir": filepath.Dir(task.SavePath),
-				"out": filepath.Base(task.SavePath),
+				"dir": filepath.Dir(absPath),
+				"out": filepath.Base(absPath),
 
 				"allow-overwrite":    "true",
 				"auto-file-renaming": "false",
@@ -175,6 +182,11 @@ func startAriaDaemon() (*exec.Cmd, error) {
 		return nil, fmt.Errorf("Couldn't find aria2c bin: %w", err)
 	}
 
+	if conn, err := net.DialTimeout("tcp", "127.0.0.1:6800", 300*time.Millisecond); err == nil {
+		conn.Close()
+		return nil, fmt.Errorf("port 6800 is already in use; another aria2c/yadiskreaper may be running")
+	}
+
 	args := []string{
 		"--enable-rpc=true",             // JSON-RPC
 		"--rpc-listen-port=6800",        // WS/HTTP port
@@ -186,6 +198,7 @@ func startAriaDaemon() (*exec.Cmd, error) {
 		"-c",                            // Enable continue
 		"--file-allocation=none",        // No drive allocate
 		"--console-log-level=warn",      // No log
+		fmt.Sprintf("--stop-with-process=%d", os.Getpid()), // Stop aria2c when yadiskreaper exits
 	}
 
 	cmd := exec.Command(ariaPath, args...)
