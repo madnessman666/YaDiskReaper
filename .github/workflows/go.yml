@@ -24,12 +24,12 @@ jobs:
     - name: Build Linux
       run: go build -v ./... -o yadiskreaper-linux
       env:
-        GOARCH: linux
+        GOOS: linux
       
     - name: Build Windows
       run: go build -v ./... -o yadiskreaper-win
       env:
-        GOARCH: windows
+        GOOS: windows
 
     - name: Test
       run: go test -v ./...
