@@ -27,7 +27,7 @@ jobs:
         GOOS: linux
       
     - name: Build Windows
-      run: go build -v -o yadiskreaper-win ./...
+      run: go build -v -o yadiskreaper-win.exe ./...
       env:
         GOOS: windows
         
@@ -43,5 +43,5 @@ jobs:
       uses: actions/upload-artifact@v7.0.2
       with: 
         name: yadiskreaper-win
-        path: ./yadiskreaper-win
+        path: ./yadiskreaper-win.exe
         
