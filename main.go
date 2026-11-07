@@ -17,8 +17,6 @@ import (
 	"github.com/vbauerster/mpb/v8/decor"
 )
 
-// var API_ENDPOINT = "https://cloud-api.yandex.net/v1/disk/public/resources/?public_key=%s&path=/%s&offset=%s"
-
 type DownloadTask struct {
 	URL         string
 	SavePath    string
@@ -26,14 +24,6 @@ type DownloadTask struct {
 	RemotePath  string
 }
 
-// type Directory struct {
-// 	Path      string    `json:"path"`
-// 	Type      string    `json:"type"` // "dir" or "file"
-// 	Name      string    `json:"name"`
-// 	PublicKey string    `json:"public_key"`
-// 	File      string    `json:"file"`
-// 	Embedded  *Embedded `json:"_embedded"`
-// }
 
 type Resource struct {
 	Name      string    `json:"name"`
@@ -142,7 +132,7 @@ func main() {
 	totalBar := p.AddBar(int64(totalFiles),
 		mpb.BarPriority(1000),
 		mpb.PrependDecorators(
-			decor.Name("📦 ВЫКАЧКА: ", decor.WC{W: 10}),
+			decor.Name("📦 DOWNLOADING: ", decor.WC{W: 10}),
 			decor.CountersNoUnit("%d / %d", decor.WC{W: 12}),
 		),
 		mpb.AppendDecorators(
@@ -221,117 +211,4 @@ func main() {
 		}
 	}
 	fmt.Println("==================================================")
-}
-
-func downloadFile(task DownloadTask) error {
-	fileName := filepath.Base(task.SavePath)
-	if len(fileName) > 20 {
-		fileName = fileName[:17] + "..."
-	}
-
-	runningName := fmt.Sprintf("%-25s", "⏳ "+fileName)
-	doneName := fmt.Sprintf("%-25s", "✅ "+fileName)
-	statusMsg := "🌐 Connecting to server..."
-	isConnected := false
-	if verifyFileMD5(task.SavePath, task.ExpectedMD5) {
-		// doneName := fmt.Sprintf("%-25s", "⚡ "+fileName)
-
-		// skipBar := p.AddBar(1,
-		// 	mpb.BarPriority(999-paralel),
-		// 	mpb.PrependDecorators(
-		// 		decor.Name(doneName),
-		// 		decor.Name(" [HASH MATCHED] ", decor.WC{W: 24}),
-		// 	),
-		// 	mpb.AppendDecorators(
-		// 		decor.Name("OK", decor.WC{W: 5}),
-		// 	),
-		// )
-		// skipBar.SetTotal(1, true)
-		atomic.AddInt64(&skippedCount, 1)
-		return nil
-	}
-	bar := p.AddBar(0,
-		mpb.BarPriority(999),
-		mpb.BarRemoveOnComplete(),
-		mpb.PrependDecorators(
-			decor.OnComplete(
-				decor.Name(runningName),
-				doneName,
-			),
-			decor.Any(func(s decor.Statistics) string {
-				if !isConnected {
-					return statusMsg
-				}
-				current := float64(s.Current) / 1024 / 1024
-				total := float64(s.Total) / 1024 / 1024
-				return fmt.Sprintf("%6.1f / %-6.1f MiB", current, total)
-			}, decor.WC{W: 24}),
-		),
-		mpb.AppendDecorators(
-			decor.Any(func(s decor.Statistics) string {
-				if !isConnected || s.Total <= 0 {
-					return ""
-				}
-				pct := float64(s.Current) / float64(s.Total) * 100
-				return fmt.Sprintf("%5.1f%%", pct)
-			}, decor.WC{W: 6}),
-			decor.EwmaSpeed(decor.SizeB1024(0), " % .1f", 60),
-		),
-	)
-
-	err := os.MkdirAll(filepath.Dir(task.SavePath), 0755)
-	if err != nil {
-		return fmt.Errorf("Can't create folder: %w", err)
-	}
-
-	resp, err := client.Get(task.URL)
-	if err != nil || resp.StatusCode >= 500 {
-		if resp != nil {
-			resp.Body.Close()
-		}
-
-		statusMsg = "🔄 500! Grabbing new url..."
-		time.Sleep(1 * time.Second)
-
-		freshURL, freshErr := getFreshURL(targetUrl, task.RemotePath)
-		if freshErr == nil && freshURL != "" {
-			resp, err = client.Get(freshURL)
-		}
-	}
-	if err != nil {
-		statusMsg = "❌ Error while connecting"
-		bar.Abort(false)
-		p.UpdateBarPriority(bar, 0, false)
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		statusMsg = "❌ Server returned " + resp.Status
-		bar.Abort(false)
-		p.UpdateBarPriority(bar, 0, false)
-		return fmt.Errorf("status: %s", resp.Status)
-	}
-
-	isConnected = true
-	bar.SetTotal(resp.ContentLength, false)
-
-	out, err := os.Create(task.SavePath)
-	if err != nil {
-		bar.Abort(false)
-		p.UpdateBarPriority(bar, 0, false)
-		return err
-	}
-	defer out.Close()
-	proxyReader, err := bar.ProxyReader(resp.Body)
-	defer proxyReader.Close()
-	_, err = io.Copy(out, proxyReader)
-	if err != nil {
-		bar.Abort(false)
-		p.UpdateBarPriority(bar, 0, false)
-		return err
-	}
-	bar.SetTotal(bar.Current(), true)
-	p.UpdateBarPriority(bar, 0, false)
-	return nil
 }

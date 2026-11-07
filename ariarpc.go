@@ -172,7 +172,7 @@ func (c *AriaClient) AddTask(task DownloadTask) error {
 func startAriaDaemon() (*exec.Cmd, error) {
 	ariaPath, err := getAriaExecutable()
 	if err != nil {
-		return nil, fmt.Errorf("не нашел бинарник aria2c: %w", err)
+		return nil, fmt.Errorf("Couldn't find aria2c bin: %w", err)
 	}
 
 	args := []string{

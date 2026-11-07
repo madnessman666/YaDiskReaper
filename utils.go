@@ -36,7 +36,7 @@ func extractEmbeddedAria() (string, error) {
 
 	err := os.WriteFile(tmpPath, embeddedAria, 0755)
 	if err != nil {
-		return "", fmt.Errorf("не удалось распаковать встроенную aria2c: %w", err)
+		return "", fmt.Errorf("Couldn't unpack embedded aria2c: %w", err)
 	}
 
 	return tmpPath, nil
