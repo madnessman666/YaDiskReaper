@@ -22,12 +22,12 @@ jobs:
         go-version: '1.26'
 
     - name: Build Linux
-      run: go build -v ./... -o yadiskreaper-linux
+      run: go build -v -o yadiskreaper-linux ./...
       env:
         GOOS: linux
       
     - name: Build Windows
-      run: go build -v ./... -o yadiskreaper-win
+      run: go build -v -o yadiskreaper-win ./...
       env:
         GOOS: windows
 
