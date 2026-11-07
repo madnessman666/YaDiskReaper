@@ -123,9 +123,8 @@ func main() {
 		log.Printf("Error white getting tree: %v\n", err)
 		return
 	}
-	totalFiles := len(allTasks)
 
-	log.Printf("📦 Found files: %d. Checking downloaded files!\n", totalFiles)
+	totalFiles := len(allTasks)
 
 	totalBar := p.AddBar(int64(totalFiles),
 		mpb.BarPriority(1000),
@@ -141,6 +140,21 @@ func main() {
 			}),
 		),
 	)
+
+	log.Printf("📦 Found files: %d!\n", totalFiles)
+
+	rootDirName := dirName
+	if rootDirName == "" {
+		rootDirName = "yandex_download"
+	}
+
+	finalSaveDir, err := filepath.Abs(filepath.Join(outDir, rootDirName))
+
+	if err != nil {
+		log.Printf("Error while resolving path: %s", err)
+	}
+
+	log.Printf("📁 Downloading to: %s\n", finalSaveDir)
 
 	aria.OnStatsUpdate = func(speedMB float64, active, waiting int) {
 		telemetryMu.Lock()
@@ -166,15 +180,6 @@ func main() {
 		logFailedToFile(task)
 	}
 
-	rootDirName := dirName
-	if rootDirName == "" {
-		rootDirName = "yandex_download"
-	}
-
-	finalSaveDir := filepath.Join(outDir, rootDirName)
-
-	log.Printf("📁 Downloading to folder: %s\n", finalSaveDir)
-
 	for _, task := range allTasks {
 		if verifyFileMD5(task.SavePath, task.ExpectedMD5) {
 			atomic.AddInt64(&skippedCount, 1)
@@ -189,7 +194,7 @@ func main() {
 
 	fmt.Println("\n==================================================")
 	if len(failedTasks) == 0 {
-		fmt.Println("🎉 SUCCESS! Everything downloaded!")
+		fmt.Printf("🎉 SUCCESS! Everything downloaded! Skipped: %d\n", skippedCount)
 	} else {
 		fmt.Printf("⚠️ WARNING: Errors while downloading: %d/%d\n", len(failedTasks), totalFiles)
 		fmt.Println("📄 Log file: failed.log")
