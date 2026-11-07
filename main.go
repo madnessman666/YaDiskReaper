@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"net/http"
@@ -23,7 +22,6 @@ type DownloadTask struct {
 	ExpectedMD5 string
 	RemotePath  string
 }
-
 
 type Resource struct {
 	Name      string    `json:"name"`
