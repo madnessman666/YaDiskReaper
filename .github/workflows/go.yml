@@ -30,6 +30,12 @@ jobs:
       run: go build -v -o yadiskreaper-win.exe ./...
       env:
         GOOS: windows
+
+    - name: Build Macos arm
+      run: go build -v -o yadiskreaper-macos-arm ./...
+      env:
+        GOOS: darwin
+        GOARCH: arm64
         
     - name: Test
       run: go test -v ./...
@@ -46,4 +52,10 @@ jobs:
         name: yadiskreaper-win
         archive: false
         path: ./yadiskreaper-win.exe
+    - name: Upload artifact macos
+      uses: actions/upload-artifact@v7.0.2
+      with: 
+        name: yadiskreaper-macos
+        archive: false
+        path: ./yadiskreaper-macos-arm
         

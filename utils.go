@@ -11,6 +11,8 @@ func getAriaExecutable() (string, error) {
 	localAria := "./aria2c_bin/aria2c"
 	if runtime.GOOS == "windows" {
 		localAria += ".exe"
+	} else if runtime.GOOS == "darwin" {
+		localAria += "_darwin"
 	}
 
 	if _, err := os.Stat(localAria); err == nil {
@@ -24,6 +26,8 @@ func extractEmbeddedAria() (string, error) {
 	binName := "yareaper_aria2c"
 	if runtime.GOOS == "windows" {
 		binName += ".exe"
+	} else if runtime.GOOS == "darwin" {
+		binName += "_darwin"
 	}
 	tmpPath := filepath.Join(os.TempDir(), binName)
 

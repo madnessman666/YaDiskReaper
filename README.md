@@ -31,6 +31,12 @@ Args explain:
 
 ## Build
 
+MacOS:
+
+```
+GOOS=darwin go build -o ./yadiskreaper-macos.exe .
+```
+
 Windows: 
 
 On windows:
