@@ -1,15 +1,11 @@
 package main
 
 import (
-	_ "embed"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 )
-
-//go:embed aria2c_bin/aria2c
-var embeddedAria []byte
 
 func getAriaExecutable() (string, error) {
 	localAria := "./aria2c_bin/aria2c"
