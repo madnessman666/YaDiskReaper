@@ -1,4 +1,4 @@
-module yandex-downloader
+module yadiskreaper
 
 go 1.26.0
 
