@@ -38,10 +38,12 @@ jobs:
       uses: actions/upload-artifact@v7.0.2
       with: 
         name: yadiskreaper-linux
+        archive: false
         path: ./yadiskreaper-linux
     - name: Upload artifact win
       uses: actions/upload-artifact@v7.0.2
       with: 
         name: yadiskreaper-win
+        archive: false
         path: ./yadiskreaper-win.exe
         
