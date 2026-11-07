@@ -35,7 +35,7 @@ jobs:
       run: go test -v ./...
       
     - name: Upload artifact linux
-      uses: actions/upload-artifacts@v7.0.2
+      uses: actions/upload-artifact@v7.0.2
       with: 
         name: yadiskreaper-linux
         path: ./yadiskreaper-linux
