@@ -39,4 +39,9 @@ jobs:
       with: 
         name: yadiskreaper-linux
         path: ./yadiskreaper-linux
+    - name: Upload artifact win
+      uses: actions/upload-artifact@v7.0.2
+      with: 
+        name: yadiskreaper-win
+        path: ./yadiskreaper-win
         
