@@ -9,6 +9,7 @@ YaDiskReaper is a tool that designed for recursive folder download from yandex d
 
 - Linux
 - Windows
+- MacOS (ARM64)
 
 ## Usage
 
