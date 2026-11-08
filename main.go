@@ -183,8 +183,9 @@ func main() {
 	}
 
 	aria.OnDownloadError = func(task DownloadTask, gid string) {
-		downloadWg.Done()
+
 		totalBar.Increment()
+		downloadWg.Done()
 
 		failedMu.Lock()
 		failedTasks = append(failedTasks, task)
@@ -198,8 +199,12 @@ func main() {
 			atomic.AddInt64(&skippedCount, 1)
 			totalBar.Increment()
 		} else {
-			aria.AddTask(task)
 			downloadWg.Add(1)
+			err := aria.AddTask(task)
+			if err != nil {
+				log.Printf("Failed to add file %s. Error: %s", task.RemotePath, err)
+				downloadWg.Done()
+			}
 		}
 	}
 

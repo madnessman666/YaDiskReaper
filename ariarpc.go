@@ -73,6 +73,16 @@ func (c *AriaClient) listenLoop() {
 
 		if errObj, hasErr := raw["error"]; hasErr {
 			log.Printf("🔥 ARIA REJECTED JOB! Response: %v\n", errObj)
+			if id, ok := raw["id"].(string); ok {
+				c.tasksMu.Lock()
+				failedTask, hasTask := c.pendingTasks[id]
+				delete(c.pendingTasks, id)
+				c.tasksMu.Unlock()
+
+				if hasTask && c.OnDownloadError != nil {
+					c.OnDownloadError(failedTask, "")
+				}
+			}
 			continue
 		}
 
@@ -121,10 +131,18 @@ func (c *AriaClient) listenLoop() {
 		firstParam, _ := params[0].(map[string]interface{})
 		gid, _ := firstParam["gid"].(string)
 
-		c.tasksMu.RLock()
-		task := c.gidToTask[gid]
-		c.tasksMu.RUnlock()
+		c.tasksMu.Lock()
+		task, exists := c.gidToTask[gid]
+		if exists {
+			delete(c.gidToTask, gid)
+		}
+		c.tasksMu.Unlock()
 
+		if !exists {
+			continue
+		}
+
+		// ПЕРЕД switch method:
 		switch method {
 		case "aria2.onDownloadComplete":
 			log.Printf("✅ Downloaded: %s\n", filepath.Base(task.SavePath))
