@@ -142,7 +142,6 @@ func (c *AriaClient) listenLoop() {
 			continue
 		}
 
-		// ПЕРЕД switch method:
 		switch method {
 		case "aria2.onDownloadComplete":
 			log.Printf("✅ Downloaded: %s\n", filepath.Base(task.SavePath))
