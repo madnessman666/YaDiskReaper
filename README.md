@@ -2,6 +2,9 @@
 
 YaDiskReaper is a tool that designed for recursive folder download from yandex disk.
 
+> [!WARNING]
+>  *Do not run multiple instances of the program simultaneously. Aggressive concurrent requests may (likely) trigger Yandex rate-limiting and lead to a temporary IP ban.*
+
 ## Supported OS:
 
 - Linux
