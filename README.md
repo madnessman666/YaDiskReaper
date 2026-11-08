@@ -38,25 +38,12 @@ GOOS=darwin go build -o ./yadiskreaper-macos.exe .
 ```
 
 Windows: 
-
-On windows:
-
-```
-go build -o ./yadiskreaper-win.exe .
-```
-
-On linux: 
-
 ```
 GOOS=windows go build -o ./yadiskreaper-win.exe .
 ```
 
 Linux:
 
-On linux:
-
 ```
 GOOS=linux go build -o ./yadiskreaper-win.exe .
 ```
-
-On Windows: (Maybe in some future i will explain how...)
