@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -176,29 +175,24 @@ func (c *AriaClient) AddTask(task DownloadTask) error {
 	return c.sendJSON(req)
 }
 
-func startAriaDaemon() (*exec.Cmd, error) {
+func startAriaDaemon(ariaPort int) (*exec.Cmd, error) {
 	ariaPath, err := getAriaExecutable()
 	if err != nil {
 		return nil, fmt.Errorf("Couldn't find aria2c bin: %w", err)
 	}
 
-	if conn, err := net.DialTimeout("tcp", "127.0.0.1:6800", 300*time.Millisecond); err == nil {
-		conn.Close()
-		return nil, fmt.Errorf("port 6800 is already in use; another aria2c/yadiskreaper may be running")
-	}
-
 	args := []string{
-		"--enable-rpc=true",             // JSON-RPC
-		"--rpc-listen-port=6800",        // WS/HTTP port
-		"--rpc-listen-all=false",        // Listen only localhost (Security)
-		"--max-concurrent-downloads=8",  // 8 files concurrently
-		"--max-connection-per-server=8", // 8 sockets per file
-		"--split=8",                     // Slice file for 8 slices
-		"--min-split-size=1M",           // Minimum size 1 MB
-		"-c",                            // Enable continue
-		"--file-allocation=none",        // No drive allocate
-		"--console-log-level=warn",      // No log
-		fmt.Sprintf("--stop-with-process=%d", os.Getpid()), // Stop aria2c when yadiskreaper exits
+		"--enable-rpc=true",      // JSON-RPC
+		"--rpc-listen-all=false", // Listen only localhost (Security)
+		fmt.Sprintf("--max-concurrent-downloads=%d", parallel),  // 8 files concurrently
+		fmt.Sprintf("--split=%d", parallel),                     // 8 sockets per file
+		fmt.Sprintf("--max-connection-per-server=%d", parallel), // Slice file for 8 slices
+		"--min-split-size=1M",                                   // Minimum size 1 MB
+		"-c",                                                    // Enable continue
+		"--file-allocation=none",                                // No drive allocate
+		"--console-log-level=warn",                              // No log
+		fmt.Sprintf("--stop-with-process=%d", os.Getpid()),      // Stop aria2c when yadiskreaper exits
+		fmt.Sprintf("--rpc-listen-port=%d", ariaPort),           //Set port for RPC interface
 	}
 
 	cmd := exec.Command(ariaPath, args...)

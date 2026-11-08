@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/sha256"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -10,6 +11,7 @@ import (
 
 func getAriaExecutable() (string, error) {
 	localAria := "./aria2c_bin/aria2c"
+
 	if runtime.GOOS == "windows" {
 		localAria += ".exe"
 	} else if runtime.GOOS == "darwin" {
@@ -21,6 +23,21 @@ func getAriaExecutable() (string, error) {
 	}
 
 	return extractEmbeddedAria()
+}
+
+func GetFreePort() (int, error) {
+	addr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:0")
+	if err != nil {
+		return 0, err
+	}
+
+	l, err := net.ListenTCP("tcp", addr)
+	if err != nil {
+		return 0, err
+	}
+	defer l.Close()
+
+	return l.Addr().(*net.TCPAddr).Port, nil
 }
 
 func extractEmbeddedAria() (string, error) {

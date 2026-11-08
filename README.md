@@ -21,7 +21,7 @@ Args explain:
 
 - -u - path to yandex disk folder
 - -o - path to destination folder
-- -p (not implemented) - number of parallel download 
+- -p - number of parallel download (default 8)
 
 ## How to run
 

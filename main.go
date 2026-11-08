@@ -44,7 +44,7 @@ type Embedded struct {
 var (
 	p         *mpb.Progress
 	targetUrl string
-	paralel   int
+	parallel  int
 	outDir    string
 	client    = &http.Client{
 		Timeout: 0,
@@ -75,7 +75,7 @@ func main() {
 
 	log.Println("Yandex Downloader")
 	flag.StringVar(&targetUrl, "u", "", "Url to yandex disk folder")
-	flag.IntVar(&paralel, "p", 8, "Number of parallel downloading")
+	flag.IntVar(&parallel, "p", 8, "Number of parallel downloading")
 	flag.StringVar(&outDir, "o", "./out", "Out dir for files")
 	flag.Parse()
 
@@ -87,6 +87,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	if parallel < 1 {
+		parallel = 1
+	}
+
+	if parallel > 16 {
+		log.Println("⚠️  WARNING: Max value for -p is 16. Setting to 16.")
+		parallel = 16
+	}
 	// END OF CHECKS OF ARGS
 
 	var (
@@ -95,8 +103,12 @@ func main() {
 		waitingFiles   int
 		telemetryMu    sync.RWMutex
 	)
-
-	ariaProcess, err := startAriaDaemon()
+	ariaPort, err := GetFreePort()
+	if err != nil {
+		log.Println("Can't allocate random port for aria. Setting 6800!")
+		ariaPort = 6800
+	}
+	ariaProcess, err := startAriaDaemon(ariaPort)
 
 	if err != nil {
 		log.Printf("❌ FUCK: %v\n", err)
@@ -111,7 +123,8 @@ func main() {
 
 	log.Println("🚀 Aria2c started! Check your belts!")
 
-	aria, err := NewAriaClient("ws://localhost:6800/jsonrpc")
+	wsURL := fmt.Sprintf("ws://127.0.0.1:%d/jsonrpc", ariaPort)
+	aria, err := NewAriaClient(wsURL)
 	if err != nil {
 		log.Fatal(err)
 	}
