@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -23,13 +24,25 @@ func getAriaExecutable() (string, error) {
 }
 
 func extractEmbeddedAria() (string, error) {
-	binName := "yareaper_aria2c"
+	h := sha256.Sum256(embeddedAria)
+	hash := fmt.Sprintf("%x", h[:4])
+
+	binName := fmt.Sprintf("yareaper_aria2c_%s", hash)
+
 	if runtime.GOOS == "windows" {
 		binName += ".exe"
 	} else if runtime.GOOS == "darwin" {
 		binName += "_darwin"
 	}
-	tmpPath := filepath.Join(os.TempDir(), binName)
+
+	tmpDir, err := os.UserCacheDir()
+	if err != nil {
+		tmpDir = os.TempDir() // если программа запущена в голом докере/LXC без профиля пользователя
+	}
+	appDir := filepath.Join(tmpDir, "yareaper")
+	_ = os.MkdirAll(appDir, 0755)
+
+	tmpPath := filepath.Join(appDir, binName)
 
 	if fi, err := os.Stat(tmpPath); err == nil {
 
@@ -38,9 +51,31 @@ func extractEmbeddedAria() (string, error) {
 		}
 	}
 
-	err := os.WriteFile(tmpPath, embeddedAria, 0755)
+	tmpFile, err := os.CreateTemp(appDir, "aria2c_*.tmp")
+
 	if err != nil {
-		return "", fmt.Errorf("Couldn't unpack embedded aria2c: %w", err)
+		return "", fmt.Errorf("couldn't create temp file: %w", err)
+	}
+
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.Write(embeddedAria); err != nil {
+		tmpFile.Close()
+		return "", err
+	}
+	if err := tmpFile.Chmod(0755); err != nil {
+		tmpFile.Close()
+		return "", err
+	}
+	tmpFile.Close()
+
+	if err := os.Rename(tmpFile.Name(), tmpPath); err != nil {
+		if runtime.GOOS == "windows" {
+			if _, statErr := os.Stat(tmpPath); statErr == nil {
+				return tmpPath, nil
+			}
+		}
+		return "", fmt.Errorf("couldn't move binary to target: %w", err)
 	}
 
 	return tmpPath, nil
