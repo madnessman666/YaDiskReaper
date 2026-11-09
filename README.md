@@ -1,5 +1,10 @@
 # YaDiskReaper
 
+![GitHub top language](https://img.shields.io/github/languages/top/madnessman666/YaDiskReaper)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/madnessman666/YaDiskReaper/go.yml)
+![GitHub Issues](https://img.shields.io/github/issues/madnessman666/YaDiskReaper)
+
+
 YaDiskReaper is a tool that designed for recursive folder download from yandex disk.
 
 > [!WARNING]
