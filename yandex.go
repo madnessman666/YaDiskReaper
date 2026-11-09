@@ -29,6 +29,27 @@ func buildUrlForFolder(publicKey string, remotePath string, offset int, limit in
 	return baseURL + "/?" + params.Encode()
 }
 
+func getInfo(publicKey string) (Resource, error) {
+	name := ""
+	reqURL := buildUrlForFolder(publicKey, "/", 0, 1)
+	resp, err := client.Get(reqURL)
+
+	if err != nil {
+		return Resource{}, err
+	}
+
+	var res Resource
+
+	json.NewDecoder(resp.Body).Decode(&res)
+	resp.Body.Close()
+
+	if name == "" {
+		name = res.Name
+	}
+
+	return res, nil
+}
+
 func getAllTasks(publicKey, remotePath, localDir string) ([]DownloadTask, string, error) {
 	var tasks []DownloadTask
 	offset := 0

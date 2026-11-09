@@ -130,9 +130,19 @@ func main() {
 		log.Fatal(err)
 	}
 
+	info, err := getInfo(targetUrl)
+
+	if err != nil {
+		log.Fatal("Couldn't get info due to error: ", err)
+	}
+
+	if info.Type == "dir" {
+		outDir = filepath.Join(outDir, info.Name)
+	}
+
 	log.Println("Getting tree of files...")
 
-	allTasks, dirName, err := getAllTasks(targetUrl, "", outDir)
+	allTasks, _, err := getAllTasks(targetUrl, "", outDir)
 	if err != nil {
 		log.Printf("Error white getting tree: %v\n", err)
 		return
@@ -160,12 +170,12 @@ func main() {
 
 	log.Printf("📦 Found files: %d!\n", totalFiles)
 
-	rootDirName := dirName
+	rootDirName := outDir
 	if rootDirName == "" {
 		rootDirName = "yandex_download"
 	}
 
-	finalSaveDir, err := filepath.Abs(filepath.Join(outDir, rootDirName))
+	finalSaveDir, err := filepath.Abs(outDir)
 
 	if err != nil {
 		log.Printf("Error while resolving path: %s", err)
