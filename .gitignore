@@ -8,7 +8,7 @@
 coverage.*
 
 # Runtime output
-/out/
+out/*
 failed.log
 *.log
 
