@@ -133,9 +133,9 @@ func (c *AriaClient) listenLoop() {
 
 		c.tasksMu.Lock()
 		task, exists := c.gidToTask[gid]
-		if exists {
-			delete(c.gidToTask, gid)
-		}
+		// if exists {
+		// 	delete(c.gidToTask, gid)
+		// }
 		c.tasksMu.Unlock()
 
 		if !exists {
@@ -145,11 +145,19 @@ func (c *AriaClient) listenLoop() {
 		switch method {
 		case "aria2.onDownloadComplete":
 			log.Printf("✅ Downloaded: %s\n", filepath.Base(task.SavePath))
+			c.tasksMu.Lock()
+			delete(c.gidToTask, gid)
+			c.tasksMu.Unlock()
+
 			if c.OnDownloadComplete != nil {
 				c.OnDownloadComplete(task, gid)
 			}
 		case "aria2.onDownloadError":
 			log.Printf("❌ Error while downloading: %s (GID: %s)\n", filepath.Base(task.SavePath), gid)
+			c.tasksMu.Lock()
+			delete(c.gidToTask, gid)
+			c.tasksMu.Unlock()
+
 			if c.OnDownloadError != nil {
 				c.OnDownloadError(task, gid)
 			}

@@ -62,9 +62,10 @@ var (
 			ResponseHeaderTimeout: 15 * time.Second,
 		},
 	}
-	failedTasks  []DownloadTask
-	failedMu     sync.Mutex
-	skippedCount int64
+	failedTasks     []DownloadTask
+	failedMu        sync.Mutex
+	skippedCount    int64
+	currentActivity string
 )
 
 func main() {
@@ -144,6 +145,9 @@ func main() {
 		mpb.PrependDecorators(
 			decor.Name("📦 DOWNLOADING: ", decor.WC{W: 10}),
 			decor.CountersNoUnit("%d / %d", decor.WC{W: 12}),
+			decor.Any(func(s decor.Statistics) string {
+				return fmt.Sprintf(" ⚙️  %-25.25s", currentActivity)
+			}, decor.WC{W: 25}),
 		),
 		mpb.AppendDecorators(
 			decor.Percentage(decor.WC{W: 5}),
@@ -195,6 +199,7 @@ func main() {
 	}
 
 	for _, task := range allTasks {
+		currentActivity = "🔍 MD5: " + filepath.Base(task.SavePath)
 		if verifyFileMD5(task.SavePath, task.ExpectedMD5) {
 			atomic.AddInt64(&skippedCount, 1)
 			totalBar.Increment()
@@ -207,7 +212,7 @@ func main() {
 			}
 		}
 	}
-
+	currentActivity = "DL remaining files"
 	downloadWg.Wait()
 
 	fmt.Println("\n==================================================")
