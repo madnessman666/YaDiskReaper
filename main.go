@@ -228,6 +228,8 @@ func main() {
 	fmt.Println("\n==================================================")
 	if len(failedTasks) == 0 {
 		fmt.Printf("🎉 SUCCESS! Everything downloaded! Skipped: %d\n", skippedCount)
+		fmt.Println("==================================================")
+		os.Exit(0)
 	} else {
 		fmt.Printf("⚠️ WARNING: Errors while downloading: %d/%d\n", len(failedTasks), totalFiles)
 		fmt.Println("📄 Log file: failed.log")
@@ -245,6 +247,7 @@ func main() {
 		if len(failedTasks) > maxShow {
 			fmt.Printf("... and %d files (check failed.log for more info)\n", len(failedTasks)-maxShow)
 		}
+		fmt.Println("==================================================")
+		os.Exit(1)
 	}
-	fmt.Println("==================================================")
 }
