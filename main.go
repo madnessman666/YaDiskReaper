@@ -199,7 +199,7 @@ func main() {
 
 	aria.OnDownloadError = func(task DownloadTask, gid string) {
 		if task.Retries >= 3 {
-			log.Printf("[%s] Limit of tries ended.", filepath.Base(task.SavePath), task.Retries)
+			log.Printf("[%s] Limit of tries ended.", filepath.Base(task.SavePath))
 			totalBar.Increment()
 			downloadWg.Done()
 
