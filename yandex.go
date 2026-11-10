@@ -69,7 +69,7 @@ func getAllTasks(publicKey, remotePath, localDir string) ([]DownloadTask, string
 			name = res.Name
 		}
 		if res.Type == "file" {
-			tasks = append(tasks, DownloadTask{URL: res.File, SavePath: filepath.Join(localDir, res.Name), ExpectedMD5: res.MD5, RemotePath: res.Path})
+			tasks = append(tasks, DownloadTask{URL: res.File, SavePath: filepath.Join(localDir, res.Name), ExpectedMD5: res.MD5, RemotePath: res.Path, Retries: 0})
 			return tasks, res.Name, nil
 		}
 
@@ -84,7 +84,7 @@ func getAllTasks(publicKey, remotePath, localDir string) ([]DownloadTask, string
 					sub, _, _ := getAllTasks(publicKey, item.Path, currLocal)
 					tasks = append(tasks, sub...)
 				} else {
-					tasks = append(tasks, DownloadTask{URL: item.File, SavePath: currLocal, ExpectedMD5: item.MD5, RemotePath: item.Path})
+					tasks = append(tasks, DownloadTask{URL: item.File, SavePath: currLocal, ExpectedMD5: item.MD5, RemotePath: item.Path, Retries: 0})
 				}
 			}
 			if len(res.Embedded.Items) == 0 {

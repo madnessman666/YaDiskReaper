@@ -21,6 +21,7 @@ type DownloadTask struct {
 	SavePath    string
 	ExpectedMD5 string
 	RemotePath  string
+	Retries     int
 }
 
 type Resource struct {
@@ -197,15 +198,39 @@ func main() {
 	}
 
 	aria.OnDownloadError = func(task DownloadTask, gid string) {
+		if task.Retries >= 3 {
+			log.Printf("[%s] Limit of tries ended.", filepath.Base(task.SavePath), task.Retries)
+			totalBar.Increment()
+			downloadWg.Done()
 
-		totalBar.Increment()
-		downloadWg.Done()
+			failedMu.Lock()
+			failedTasks = append(failedTasks, task)
+			failedMu.Unlock()
 
-		failedMu.Lock()
-		failedTasks = append(failedTasks, task)
-		failedMu.Unlock()
+			logFailedToFile(task)
+			return
+		}
+		task.Retries++
+		log.Printf("[%s] Got error while trying download. Retrying... %d/3", task.SavePath, task.Retries)
+		freshURL, err := getFreshURL(targetUrl, task.RemotePath)
+		if err != nil {
+			log.Printf("❌ Can't get new url: %v", err)
 
-		logFailedToFile(task)
+			totalBar.Increment()
+			downloadWg.Done()
+
+			failedMu.Lock()
+			failedTasks = append(failedTasks, task)
+			failedMu.Unlock()
+			logFailedToFile(task)
+			return
+		}
+		task.URL = freshURL
+		err = aria.AddTask(task)
+		if err != nil {
+			log.Printf("Failed to add file %s. Error: %s", task.RemotePath, err)
+			downloadWg.Done()
+		}
 	}
 
 	for _, task := range allTasks {
