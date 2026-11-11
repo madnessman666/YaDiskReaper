@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -243,11 +242,10 @@ func main() {
 
 		time.Sleep(time.Minute)
 		currentActivity = "DL failed files"
-		for idx, task := range failedTasks {
+		tasksToRetry := failedTasks
+		failedTasks = nil
+		for _, task := range tasksToRetry {
 			task.Retries++
-			failedMu.Lock()
-			failedTasks = slices.Delete(failedTasks, idx, idx+1)
-			failedMu.Unlock()
 			log.Printf("Getting new url for %s", task.RemotePath)
 			freshURL, err := getFreshURL(targetUrl, task.RemotePath)
 			if err != nil {
