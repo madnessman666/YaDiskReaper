@@ -132,24 +132,42 @@ func verifyFileMD5(filePath, expectedMD5 string) bool {
 }
 
 func getFreshURL(publicKey, remotePath string) (string, error) {
+	pauseMu.Lock()
+	if time.Now().Before(globalPauseUntil) {
+		sleepDuration := time.Until(globalPauseUntil)
+		pauseMu.Unlock()
+
+		log.Printf("⏸️ Timeout for all threads enabled (429). Waiting %v...", sleepDuration.Truncate(time.Second))
+		time.Sleep(sleepDuration)
+	} else {
+		pauseMu.Unlock()
+	}
+
+	apiLimiter.Wait(context.Background())
+
 	baseURL := "https://cloud-api.yandex.net/v1/disk/public/resources/download"
 	params := url.Values{}
 	params.Add("public_key", publicKey)
 	params.Add("path", remotePath)
-	apiLimiter.Wait(context.Background())
+
 	resp, err := client.Get(baseURL + "?" + params.Encode())
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusTooManyRequests {
+		backoff := 30 * time.Second
+
+		pauseMu.Lock()
+		globalPauseUntil = time.Now().Add(backoff)
+		pauseMu.Unlock()
+
+		log.Printf("🚨 YANDEX IS CHOKING (429)! Enabling timeout %v for all threads!", backoff)
+		return "", fmt.Errorf("API error: 429 TOO MANY REQUESTS")
+	}
+
 	if resp.StatusCode != http.StatusOK {
-		if resp.StatusCode == http.StatusTooManyRequests {
-			backoff := 30 * time.Second
-			if retryAfter := resp.Header.Get("Retry-After"); retryAfter != "" {
-				log.Println("Yandex asked to sleep for: ", retryAfter)
-			}
-		}
 		return "", fmt.Errorf("API error: %s", resp.Status)
 	}
 

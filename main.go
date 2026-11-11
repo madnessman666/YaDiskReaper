@@ -64,11 +64,13 @@ var (
 			ResponseHeaderTimeout: 15 * time.Second,
 		},
 	}
-	failedTasks     []DownloadTask
-	failedMu        sync.Mutex
-	skippedCount    int64
-	currentActivity string
-	apiLimiter      = rate.NewLimiter(rate.Every(5*time.Second), 1)
+	failedTasks      []DownloadTask
+	failedMu         sync.Mutex
+	skippedCount     int64
+	currentActivity  string
+	apiLimiter       = rate.NewLimiter(rate.Every(5*time.Second), 1)
+	globalPauseUntil time.Time
+	pauseMu          sync.Mutex
 )
 
 func main() {
