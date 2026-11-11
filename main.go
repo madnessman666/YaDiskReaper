@@ -245,7 +245,9 @@ func main() {
 		currentActivity = "DL failed files"
 		for idx, task := range failedTasks {
 			task.Retries++
+			failedMu.Lock()
 			failedTasks = slices.Delete(failedTasks, idx, idx+1)
+			failedMu.Unlock()
 			log.Printf("Getting new url for %s", task.RemotePath)
 			freshURL, err := getFreshURL(targetUrl, task.RemotePath)
 			if err != nil {
