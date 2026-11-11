@@ -123,7 +123,8 @@ func verifyFileMD5(filePath, expectedMD5 string) bool {
 	defer file.Close()
 
 	hash := md5.New()
-	if _, err := io.Copy(hash, file); err != nil {
+	buf := make([]byte, 1024*1024*4)
+	if _, err := io.CopyBuffer(hash, file, buf); err != nil {
 		return false
 	}
 
