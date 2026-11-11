@@ -7,11 +7,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 )
 
 var visitedPaths = make(map[string]bool)
@@ -142,6 +144,12 @@ func getFreshURL(publicKey, remotePath string) (string, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusTooManyRequests {
+			backoff := 30 * time.Second
+			if retryAfter := resp.Header.Get("Retry-After"); retryAfter != "" {
+				log.Println("Yandex asked to sleep for: ", retryAfter)
+			}
+		}
 		return "", fmt.Errorf("API error: %s", resp.Status)
 	}
 
