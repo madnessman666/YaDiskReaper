@@ -254,8 +254,6 @@ func main() {
 				totalBar.Increment()
 				downloadWg.Done()
 
-				failedMu.Lock()
-				failedMu.Unlock()
 				logFailedToFile(task)
 				return
 			}
