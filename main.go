@@ -202,39 +202,22 @@ func main() {
 	}
 
 	aria.OnDownloadError = func(task DownloadTask, gid string) {
-		if task.Retries >= 3 {
+		if task.Retries >= 1 {
 			log.Printf("[%s] Limit of tries ended.", filepath.Base(task.SavePath))
-			totalBar.Increment()
-			downloadWg.Done()
 
 			failedMu.Lock()
 			failedTasks = append(failedTasks, task)
 			failedMu.Unlock()
 
 			logFailedToFile(task)
+			totalBar.Increment()
+			downloadWg.Done()
 			return
 		}
+		failedTasks = append(failedTasks, task)
 		task.Retries++
-		log.Printf("[%s] Got error while trying download. Retrying... %d/3", task.SavePath, task.Retries)
-		freshURL, err := getFreshURL(targetUrl, task.RemotePath)
-		if err != nil {
-			log.Printf("❌ Can't get new url: %v", err)
-
-			totalBar.Increment()
-			downloadWg.Done()
-
-			failedMu.Lock()
-			failedTasks = append(failedTasks, task)
-			failedMu.Unlock()
-			logFailedToFile(task)
-			return
-		}
-		task.URL = freshURL
-		err = aria.AddTask(task)
-		if err != nil {
-			log.Printf("Failed to add file %s. Error: %s", task.RemotePath, err)
-			downloadWg.Done()
-		}
+		log.Printf("[%s] Got error while trying download.", task.SavePath)
+		downloadWg.Done()
 	}
 
 	for _, task := range allTasks {
@@ -254,6 +237,39 @@ func main() {
 	currentActivity = "DL remaining files"
 	downloadWg.Wait()
 
+	if len(failedTasks) > 0 {
+		log.Println("Got errors while trying download. Sleeping 1 minute...")
+
+		time.Sleep(time.Minute)
+		currentActivity = "DL failed files"
+		for _, task := range failedTasks {
+			task.Retries++
+			failedTasks = append(failedTasks, task)
+			log.Printf("Getting new url for %s", task.RemotePath)
+			freshURL, err := getFreshURL(targetUrl, task.RemotePath)
+			if err != nil {
+				log.Printf("❌ Can't get new url: %v", err)
+
+				totalBar.Increment()
+				downloadWg.Done()
+
+				failedMu.Lock()
+				failedTasks = append(failedTasks, task)
+				failedMu.Unlock()
+				logFailedToFile(task)
+				return
+			}
+			task.URL = freshURL
+			downloadWg.Add(1)
+			err = aria.AddTask(task)
+			if err != nil {
+				log.Printf("Failed to add file %s. Error: %s", task.RemotePath, err)
+				downloadWg.Done()
+			}
+		}
+	}
+
+	downloadWg.Wait()
 	fmt.Println("\n==================================================")
 	if len(failedTasks) == 0 {
 		fmt.Printf("🎉 SUCCESS! Everything downloaded! Skipped: %d\n", skippedCount)
