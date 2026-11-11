@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
@@ -133,7 +134,7 @@ func getFreshURL(publicKey, remotePath string) (string, error) {
 	params := url.Values{}
 	params.Add("public_key", publicKey)
 	params.Add("path", remotePath)
-
+	apiLimiter.Wait(context.Background())
 	resp, err := client.Get(baseURL + "?" + params.Encode())
 	if err != nil {
 		return "", err

@@ -14,6 +14,7 @@ import (
 
 	"github.com/vbauerster/mpb/v8"
 	"github.com/vbauerster/mpb/v8/decor"
+	"golang.org/x/time/rate"
 )
 
 type DownloadTask struct {
@@ -67,6 +68,7 @@ var (
 	failedMu        sync.Mutex
 	skippedCount    int64
 	currentActivity string
+	apiLimiter      = rate.NewLimiter(rate.Every(2*time.Second), 1)
 )
 
 func main() {

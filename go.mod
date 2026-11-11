@@ -3,12 +3,16 @@ module yadiskreaper
 go 1.26.0
 
 require (
+	github.com/gorilla/websocket v1.5.3
+	github.com/vbauerster/mpb/v8 v8.16.2
+	golang.org/x/time v0.16.0
+)
+
+require (
 	github.com/VividCortex/ewma v1.2.0 // indirect
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
-	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/mattn/go-runewidth v0.0.30 // indirect
 	github.com/vbauerster/cupwriter v0.0.5 // indirect
-	github.com/vbauerster/mpb/v8 v8.16.2 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 )
