@@ -68,7 +68,7 @@ var (
 	failedMu        sync.Mutex
 	skippedCount    int64
 	currentActivity string
-	apiLimiter      = rate.NewLimiter(rate.Every(2*time.Second), 1)
+	apiLimiter      = rate.NewLimiter(rate.Every(5*time.Second), 1)
 )
 
 func main() {
