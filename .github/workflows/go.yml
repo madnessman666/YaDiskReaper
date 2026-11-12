@@ -22,17 +22,17 @@ jobs:
         go-version: '1.26'
 
     - name: Build Linux
-      run: go build -v -o yadiskreaper-linux ./...
+      run: go build -v -o yadiskreaper-linux .
       env:
         GOOS: linux
       
     - name: Build Windows
-      run: go build -v -o yadiskreaper-win.exe ./...
+      run: go build -v -o yadiskreaper-win.exe .
       env:
         GOOS: windows
 
     - name: Build Macos arm
-      run: go build -v -o yadiskreaper-macos-arm ./...
+      run: go build -v -o yadiskreaper-macos-arm .
       env:
         GOOS: darwin
         GOARCH: arm64

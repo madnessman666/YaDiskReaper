@@ -7,19 +7,15 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+
+	"yadiskreaper/internal/paths"
 )
 
 func getAriaExecutable() (string, error) {
-	localAria := "./aria2c_bin/aria2c"
-
-	if runtime.GOOS == "windows" {
-		localAria += ".exe"
-	} else if runtime.GOOS == "darwin" {
-		localAria += "_darwin"
-	}
-
-	if _, err := os.Stat(localAria); err == nil {
-		return localAria, nil
+	if localAria, ok := paths.LocalAriaPath(); ok {
+		if _, err := os.Stat(localAria); err == nil {
+			return localAria, nil
+		}
 	}
 
 	return extractEmbeddedAria()
@@ -44,20 +40,12 @@ func extractEmbeddedAria() (string, error) {
 	h := sha256.Sum256(embeddedAria)
 	hash := fmt.Sprintf("%x", h[:4])
 
-	binName := fmt.Sprintf("yareaper_aria2c_%s", hash)
+	binName := paths.EmbeddedAriaName(hash)
 
-	if runtime.GOOS == "windows" {
-		binName += ".exe"
-	} else if runtime.GOOS == "darwin" {
-		binName += "_darwin"
-	}
-
-	tmpDir, err := os.UserCacheDir()
+	appDir, err := paths.AriaCacheDir()
 	if err != nil {
-		tmpDir = os.TempDir() // если программа запущена в голом докере/LXC без профиля пользователя
+		return "", err
 	}
-	appDir := filepath.Join(tmpDir, "yareaper")
-	_ = os.MkdirAll(appDir, 0755)
 
 	tmpPath := filepath.Join(appDir, binName)
 
