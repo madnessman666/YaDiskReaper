@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -184,9 +185,9 @@ func (c *AriaClient) AddTask(task DownloadTask) error {
 		"params": []interface{}{
 			[]string{task.URL},
 			map[string]string{
-				"dir": filepath.Dir(absPath),
-				"out": filepath.Base(absPath),
-
+				"dir":                filepath.Dir(absPath),
+				"out":                filepath.Base(absPath),
+				"checksum":           "md5=" + strings.ToLower(task.ExpectedMD5),
 				"allow-overwrite":    "true",
 				"auto-file-renaming": "false",
 			},
@@ -218,6 +219,7 @@ func startAriaDaemon(ariaPort int) (*exec.Cmd, error) {
 		"--console-log-level=warn",                              // No log
 		fmt.Sprintf("--stop-with-process=%d", os.Getpid()),      // Stop aria2c when yadiskreaper exits
 		fmt.Sprintf("--rpc-listen-port=%d", ariaPort),           //Set port for RPC interface
+		"--check-integrity=true",
 	}
 
 	cmd := exec.Command(ariaPath, args...)

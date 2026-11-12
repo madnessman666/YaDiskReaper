@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/vbauerster/mpb/v8"
@@ -221,18 +220,18 @@ func main() {
 	}
 
 	for _, task := range allTasks {
-		currentActivity = "🔍 MD5: " + filepath.Base(task.SavePath)
-		if verifyFileMD5(task.SavePath, task.ExpectedMD5) {
-			atomic.AddInt64(&skippedCount, 1)
-			totalBar.Increment()
-		} else {
-			downloadWg.Add(1)
-			err := aria.AddTask(task)
-			if err != nil {
-				log.Printf("Failed to add file %s. Error: %s", task.RemotePath, err)
-				downloadWg.Done()
-			}
+		// currentActivity = "🔍 MD5: " + filepath.Base(task.SavePath)
+		// if verifyFileMD5(task.SavePath, task.ExpectedMD5) {
+		// 	atomic.AddInt64(&skippedCount, 1)
+		// 	totalBar.Increment()
+		// } else {
+		downloadWg.Add(1)
+		err := aria.AddTask(task)
+		if err != nil {
+			log.Printf("Failed to add file %s. Error: %s", task.RemotePath, err)
+			downloadWg.Done()
 		}
+		// }
 	}
 	currentActivity = "DL remaining files"
 	downloadWg.Wait()
