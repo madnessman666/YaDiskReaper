@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"hash"
 	"io"
 	"log"
 	"net/http"
@@ -13,10 +14,26 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 )
 
 var visitedPaths = make(map[string]bool)
+
+const bufferSize = 512 * 1024
+
+var bufPool = sync.Pool{
+	New: func() any {
+		b := make([]byte, bufferSize)
+		return &b
+	},
+}
+
+var hashPool = sync.Pool{
+	New: func() any {
+		return md5.New()
+	},
+}
 
 func buildUrlForFolder(publicKey string, remotePath string, offset int, limit int) string {
 	baseURL := "https://cloud-api.yandex.net/v1/disk/public/resources"
@@ -112,7 +129,12 @@ func getAllTasks(publicKey, remotePath, localDir string) ([]DownloadTask, string
 }
 
 func verifyFileMD5(filePath, expectedMD5 string) bool {
-	if expectedMD5 == "" {
+	if len(expectedMD5) != md5.Size*2 {
+		return false
+	}
+
+	var expected [md5.Size]byte
+	if _, err := hex.Decode(expected[:], []byte(expectedMD5)); err != nil {
 		return false
 	}
 
@@ -122,14 +144,21 @@ func verifyFileMD5(filePath, expectedMD5 string) bool {
 	}
 	defer file.Close()
 
-	hash := md5.New()
-	buf := make([]byte, 1024*1024*16)
-	if _, err := io.CopyBuffer(hash, file, buf); err != nil {
+	h := hashPool.Get().(hash.Hash)
+	h.Reset()
+	defer hashPool.Put(h)
+
+	bufPtr := bufPool.Get().(*[]byte)
+	defer bufPool.Put(bufPtr)
+
+	if _, err := io.CopyBuffer(h, file, *bufPtr); err != nil {
 		return false
 	}
 
-	calculatedMD5 := hex.EncodeToString(hash.Sum(nil))
-	return calculatedMD5 == expectedMD5
+	var actual [md5.Size]byte
+	h.Sum(actual[:0])
+
+	return actual == expected
 }
 
 func getFreshURL(publicKey, remotePath string) (string, error) {
