@@ -12,10 +12,9 @@ import (
 )
 
 func getAriaExecutable() (string, error) {
-	if localAria, ok := paths.LocalAriaPath(); ok {
-		if _, err := os.Stat(localAria); err == nil {
-			return localAria, nil
-		}
+	localAria := paths.LocalAriaPath()
+	if _, err := os.Stat(localAria); err == nil {
+		return localAria, nil
 	}
 
 	return extractEmbeddedAria()

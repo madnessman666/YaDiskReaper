@@ -10,23 +10,14 @@ import (
 const AppName = "yareaper"
 
 func ariaSuffix() string {
-	switch runtime.GOOS {
-	case "windows":
+	if runtime.GOOS == "windows" {
 		return ".exe"
-	case "darwin":
-		return "_darwin"
-	default:
-		return ""
 	}
+	return ""
 }
 
-func LocalAriaPath() (string, bool) {
-	switch runtime.GOOS {
-	case "windows", "darwin", "linux":
-		return filepath.Join("aria2c_bin", runtime.GOOS, "aria2c"+ariaSuffix()), true
-	default:
-		return "", false
-	}
+func LocalAriaPath() string {
+	return filepath.Join("aria2c_bin", runtime.GOOS, "aria2c"+ariaSuffix())
 }
 
 func AriaCacheDir() (string, error) {
