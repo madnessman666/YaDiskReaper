@@ -14,16 +14,26 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// AriaStats is a lightweight snapshot of aria2's global progress.
+type AriaStats struct {
+	SpeedBytes  float64
+	Active      int
+	Waiting     int
+	ActiveBytes int64 // bytes already downloaded by currently active jobs
+}
+
 type AriaClient struct {
 	conn               *websocket.Conn
 	tasksMu            sync.RWMutex
 	gidToTask          map[string]DownloadTask
 	writeMu            sync.Mutex
 	pendingTasks       map[string]DownloadTask
+	statsMu            sync.Mutex
+	stats              AriaStats
 	OnDownloadStart    func(task DownloadTask, gid string)
 	OnDownloadComplete func(task DownloadTask, gid string)
 	OnDownloadError    func(task DownloadTask, gid string)
-	OnStatsUpdate      func(speedMB float64, active, waiting int)
+	OnStatsUpdate      func(stats AriaStats)
 }
 
 func NewAriaClient(wsURL string) (*AriaClient, error) {
@@ -44,16 +54,39 @@ func NewAriaClient(wsURL string) (*AriaClient, error) {
 	return client, nil
 }
 
+// connectAria retries the initial RPC connection: aria2 may need a moment to
+// open its port, especially on the very first run while the binary is extracted.
+func connectAria(wsURL string) (*AriaClient, error) {
+	deadline := time.Now().Add(5 * time.Second)
+
+	var lastErr error
+	for time.Now().Before(deadline) {
+		client, err := NewAriaClient(wsURL)
+		if err == nil {
+			return client, nil
+		}
+		lastErr = err
+		time.Sleep(150 * time.Millisecond)
+	}
+
+	return nil, lastErr
+}
+
 func (c *AriaClient) startStatPoller() {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	for range ticker.C {
-		req := map[string]interface{}{
+		c.sendJSON(map[string]interface{}{
 			"jsonrpc": "2.0",
 			"id":      "global_stat",
 			"method":  "aria2.getGlobalStat",
 			"params":  []interface{}{},
-		}
-		c.sendJSON(req)
+		})
+		c.sendJSON(map[string]interface{}{
+			"jsonrpc": "2.0",
+			"id":      "active_stat",
+			"method":  "aria2.tellActive",
+			"params":  []interface{}{},
+		})
 	}
 }
 
@@ -98,10 +131,35 @@ func (c *AriaClient) listenLoop() {
 				active, _ := strconv.Atoi(activeStr)
 				waiting, _ := strconv.Atoi(waitingStr)
 
-				speedMB := speedBytes / 1024 / 1024
-				if c.OnStatsUpdate != nil {
-					c.OnStatsUpdate(speedMB, active, waiting)
+				c.statsMu.Lock()
+				c.stats.SpeedBytes = speedBytes
+				c.stats.Active = active
+				c.stats.Waiting = waiting
+				c.statsMu.Unlock()
+
+				c.publishStats()
+			}
+			continue
+		}
+
+		if ok && id == "active_stat" {
+			if items, ok := raw["result"].([]interface{}); ok {
+				var completed int64
+				for _, item := range items {
+					status, ok := item.(map[string]interface{})
+					if !ok {
+						continue
+					}
+					completedStr, _ := status["completedLength"].(string)
+					value, _ := strconv.ParseInt(completedStr, 10, 64)
+					completed += value
 				}
+
+				c.statsMu.Lock()
+				c.stats.ActiveBytes = completed
+				c.statsMu.Unlock()
+
+				c.publishStats()
 			}
 			continue
 		}
@@ -236,4 +294,14 @@ func (c *AriaClient) sendJSON(v interface{}) error {
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
 	return c.conn.WriteJSON(v)
+}
+
+func (c *AriaClient) publishStats() {
+	c.statsMu.Lock()
+	stats := c.stats
+	c.statsMu.Unlock()
+
+	if c.OnStatsUpdate != nil {
+		c.OnStatsUpdate(stats)
+	}
 }
