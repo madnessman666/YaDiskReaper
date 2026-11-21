@@ -24,6 +24,9 @@ fn main() {
 
     // The engine length feeds the build fingerprint: when it changes the
     // crate recompiles, so `include_bytes!` never picks up a stale payload.
-    println!("cargo:rustc-env=YADISKREAPER_GUI_ENGINE_LEN={}", bytes.len());
+    println!(
+        "cargo:rustc-env=YADISKREAPER_GUI_ENGINE_LEN={}",
+        bytes.len()
+    );
     println!("cargo:rerun-if-changed={}", dir.display());
 }
