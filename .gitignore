@@ -12,6 +12,11 @@ out/*
 failed.log
 *.log
 
+# Rust GUI
+/gui/target/
+/gui/engine-bin/*
+!/gui/engine-bin/.gitkeep
+
 # macOS
 .DS_Store
 .AppleDouble

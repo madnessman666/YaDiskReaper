@@ -13,11 +13,18 @@ import (
 
 func getAriaExecutable() (string, error) {
 	localAria := paths.LocalAriaPath()
-	if _, err := os.Stat(localAria); err == nil {
+	if fi, err := os.Stat(localAria); err == nil && isExecutable(fi) {
 		return localAria, nil
 	}
 
 	return extractEmbeddedAria()
+}
+
+func isExecutable(fi os.FileInfo) bool {
+	if runtime.GOOS == "windows" {
+		return true
+	}
+	return fi.Mode()&0o111 != 0
 }
 
 func GetFreePort() (int, error) {

@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 )
 
 var visitedPaths = make(map[string]bool)
@@ -30,21 +31,28 @@ func buildUrlForFolder(publicKey string, remotePath string, offset int, limit in
 }
 
 func getInfo(publicKey string) (Resource, error) {
-	name := ""
 	reqURL := buildUrlForFolder(publicKey, "/", 0, 1)
-	resp, err := client.Get(reqURL)
+	return fetchResource(reqURL)
+}
 
+// fetchResource performs one API request and turns non-200 responses into
+// errors, so a typo in the public link is reported instead of silently
+// producing an empty file list.
+func fetchResource(reqURL string) (Resource, error) {
+	resp, err := client.Get(reqURL)
 	if err != nil {
 		return Resource{}, err
 	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 300))
+		return Resource{}, fmt.Errorf("API error %s: %s", resp.Status, strings.TrimSpace(string(body)))
+	}
 
 	var res Resource
-
-	json.NewDecoder(resp.Body).Decode(&res)
-	resp.Body.Close()
-
-	if name == "" {
-		name = res.Name
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return Resource{}, fmt.Errorf("couldn't decode API response: %w", err)
 	}
 
 	return res, nil
@@ -57,19 +65,16 @@ func getAllTasks(publicKey, remotePath, localDir string) ([]DownloadTask, string
 	name := ""
 	for {
 		reqURL := buildUrlForFolder(publicKey, remotePath, offset, limit)
-		resp, err := client.Get(reqURL)
+		res, err := fetchResource(reqURL)
 		if err != nil {
 			return nil, "", err
 		}
-
-		var res Resource
-		json.NewDecoder(resp.Body).Decode(&res)
-		resp.Body.Close()
 		if name == "" {
 			name = res.Name
 		}
 		if res.Type == "file" {
-			tasks = append(tasks, DownloadTask{URL: res.File, SavePath: filepath.Join(localDir, res.Name), ExpectedMD5: res.MD5, RemotePath: res.Path, Retries: 0})
+			countScanned(res.Size)
+			tasks = append(tasks, DownloadTask{URL: res.File, SavePath: filepath.Join(localDir, res.Name), ExpectedMD5: res.MD5, RemotePath: res.Path, Size: res.Size, Retries: 0})
 			return tasks, res.Name, nil
 		}
 
@@ -84,7 +89,8 @@ func getAllTasks(publicKey, remotePath, localDir string) ([]DownloadTask, string
 					sub, _, _ := getAllTasks(publicKey, item.Path, currLocal)
 					tasks = append(tasks, sub...)
 				} else {
-					tasks = append(tasks, DownloadTask{URL: item.File, SavePath: currLocal, ExpectedMD5: item.MD5, RemotePath: item.Path, Retries: 0})
+					countScanned(item.Size)
+					tasks = append(tasks, DownloadTask{URL: item.File, SavePath: currLocal, ExpectedMD5: item.MD5, RemotePath: item.Path, Size: item.Size, Retries: 0})
 				}
 			}
 			if len(res.Embedded.Items) == 0 {

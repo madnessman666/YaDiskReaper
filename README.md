@@ -28,6 +28,32 @@ Args explain:
 - -u - path to yandex disk folder
 - -o - path to destination folder
 - -p - number of parallel download (default 8)
+- -scan-only - scan the folder and report totals without downloading anything
+- -json - write machine-readable JSON events to stdout (logs go to stderr)
+
+## Desktop GUI (Rust)
+
+A small native GUI lives in [`gui/`](gui/). It is a thin [egui](https://github.com/emilk/egui)
+frontend that drives the very same Go engine through its `--json` event stream,
+so aria2c, retries and MD5 checks work exactly like in the CLI.
+
+Build the engine and run the GUI:
+
+```
+go build -o yadiskreaper .
+cd gui
+cargo run --release
+```
+
+Features: scan-only preview, file and byte progress, speed/ETA/queue, MD5 skip,
+cancel, failed-file list, dark/light theme. The GUI finds the engine next to
+itself, in the repository root, in the current directory or on `PATH`; the path
+can also be set via `YADISKREAPER_BIN` or under **Advanced** in the app.
+CI releases embed the engine inside the GUI binary and extract it to the
+OS cache dir on first run, so the GUI artifacts are self-contained.
+
+See [`gui/README.md`](gui/README.md) for details and the event protocol.
+
 
 ## How to run
 

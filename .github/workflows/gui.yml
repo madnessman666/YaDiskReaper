@@ -1,0 +1,109 @@
+# Build and test the Rust desktop GUI (gui/).
+#
+# The Go engine is built first and embedded into the GUI binary, so the
+# uploaded artifacts are self-contained (the engine is extracted to the
+# OS cache dir on first run). YADISKREAPER_BIN and the Advanced ->
+# Engine binary field still allow pointing the GUI at another engine.
+
+name: GUI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: clippy
+
+    - name: Cache cargo
+      uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: gui
+
+    - name: Clippy
+      working-directory: gui
+      run: cargo clippy --all-targets -- -D warnings
+
+    - name: Test
+      working-directory: gui
+      run: cargo test
+
+  build:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: yadiskreaper-gui-linux
+            binary: yadiskreaper-gui
+            suffix: linux
+            exe: ""
+          - os: windows-latest
+            artifact: yadiskreaper-gui-win
+            binary: yadiskreaper-gui.exe
+            suffix: win.exe
+            exe: ".exe"
+          - os: macos-latest
+            artifact: yadiskreaper-gui-macos
+            binary: yadiskreaper-gui
+            suffix: macos-arm
+            exe: ""
+
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache cargo
+      uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: gui
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.26'
+
+    - name: Build engine (embedded into the GUI binary)
+      shell: bash
+      run: go build -o "gui/engine-bin/yadiskreaper${{ matrix.exe }}" .
+
+    - name: Install Linux GUI dependencies
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libx11-dev libxi-dev libxcursor-dev libxrandr-dev libxinerama-dev \
+          libgl1-mesa-dev libwayland-dev libxkbcommon-dev pkg-config
+
+    - name: Build
+      working-directory: gui
+      run: cargo build --release
+
+    - name: Rename binary with platform suffix
+      shell: bash
+      run: mv "gui/target/release/${{ matrix.binary }}" "gui/target/release/yadiskreaper-gui-${{ matrix.suffix }}"
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v7.0.2
+      with:
+        name: ${{ matrix.artifact }}
+        archive: false
+        path: gui/target/release/yadiskreaper-gui-${{ matrix.suffix }}
