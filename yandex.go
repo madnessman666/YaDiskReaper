@@ -1,19 +1,39 @@
 package main
 
 import (
+	"context"
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"hash"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
+	"time"
 )
 
 var visitedPaths = make(map[string]bool)
+
+const bufferSize = 512 * 1024
+
+var bufPool = sync.Pool{
+	New: func() any {
+		b := make([]byte, bufferSize)
+		return &b
+	},
+}
+
+var hashPool = sync.Pool{
+	New: func() any {
+		return md5.New()
+	},
+}
 
 func buildUrlForFolder(publicKey string, remotePath string, offset int, limit int) string {
 	baseURL := "https://cloud-api.yandex.net/v1/disk/public/resources"
@@ -109,7 +129,12 @@ func getAllTasks(publicKey, remotePath, localDir string) ([]DownloadTask, string
 }
 
 func verifyFileMD5(filePath, expectedMD5 string) bool {
-	if expectedMD5 == "" {
+	if len(expectedMD5) != md5.Size*2 {
+		return false
+	}
+
+	var expected [md5.Size]byte
+	if _, err := hex.Decode(expected[:], []byte(expectedMD5)); err != nil {
 		return false
 	}
 
@@ -119,16 +144,37 @@ func verifyFileMD5(filePath, expectedMD5 string) bool {
 	}
 	defer file.Close()
 
-	hash := md5.New()
-	if _, err := io.Copy(hash, file); err != nil {
+	h := hashPool.Get().(hash.Hash)
+	h.Reset()
+	defer hashPool.Put(h)
+
+	bufPtr := bufPool.Get().(*[]byte)
+	defer bufPool.Put(bufPtr)
+
+	if _, err := io.CopyBuffer(h, file, *bufPtr); err != nil {
 		return false
 	}
 
-	calculatedMD5 := hex.EncodeToString(hash.Sum(nil))
-	return calculatedMD5 == expectedMD5
+	var actual [md5.Size]byte
+	h.Sum(actual[:0])
+
+	return actual == expected
 }
 
 func getFreshURL(publicKey, remotePath string) (string, error) {
+	pauseMu.Lock()
+	if time.Now().Before(globalPauseUntil) {
+		sleepDuration := time.Until(globalPauseUntil)
+		pauseMu.Unlock()
+
+		log.Printf("⏸️ Timeout for all threads enabled (429). Waiting %v...", sleepDuration.Truncate(time.Second))
+		time.Sleep(sleepDuration)
+	} else {
+		pauseMu.Unlock()
+	}
+
+	apiLimiter.Wait(context.Background())
+
 	baseURL := "https://cloud-api.yandex.net/v1/disk/public/resources/download"
 	params := url.Values{}
 	params.Add("public_key", publicKey)
@@ -139,6 +185,17 @@ func getFreshURL(publicKey, remotePath string) (string, error) {
 		return "", err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusTooManyRequests {
+		backoff := 30 * time.Second
+
+		pauseMu.Lock()
+		globalPauseUntil = time.Now().Add(backoff)
+		pauseMu.Unlock()
+
+		log.Printf("🚨 YANDEX IS CHOKING (429)! Enabling timeout %v for all threads!", backoff)
+		return "", fmt.Errorf("API error: 429 TOO MANY REQUESTS")
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("API error: %s", resp.Status)
