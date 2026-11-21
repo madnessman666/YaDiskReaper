@@ -62,11 +62,16 @@ The GUI looks for the engine in this order:
 3. next to the GUI executable (`yadiskreaper`, `yadiskreaper.exe`, …)
 4. the crate directory and its parent (works with `cargo run` in a checkout)
 5. the current directory and its parent
-6. every `PATH` entry
-7. an engine embedded at build time (CI builds always have one), extracted
+6. an engine embedded at build time (CI builds always have one), extracted
    to the OS cache dir on first run: `~/.cache/yadiskreaper-gui/` (Linux),
    `~/Library/Caches/yadiskreaper-gui/` (macOS),
    `%LOCALAPPDATA%\yadiskreaper-gui\` (Windows)
+7. every `PATH` entry
+
+Only engines built for the current platform are picked up: every candidate
+is validated by its binary magic, so a foreign artifact like
+`yadiskreaper-linux` sitting next to the GUI on Windows is ignored
+instead of failing to start.
 
 If no executable is found, the footer shows a hint and a build command. Note
 that on Unix the binary must have the executable bit set; `go build` does that.
